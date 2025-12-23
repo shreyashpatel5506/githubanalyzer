@@ -1,59 +1,95 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export async function POST(req) {
   try {
-    const { repoDetails, username } = await req.json();
+    const { repoDetails } = await req.json();
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite-preview-09-2025" });
+    if (!repoDetails) {
+      return NextResponse.json(
+        { error: "Repo details missing" },
+        { status: 400 }
+      );
+    }
 
     const prompt = `
-      You are a Senior Open Source Maintainer and Career Mentor. 
-      Analyze this specific GitHub repository brutally honestly.
+You are a brutally honest Senior Open Source Maintainer and Career Mentor.
 
-      Repository Info:
-      - Name: ${repoDetails.name}
-      - Description: ${repoDetails.description || "No description provided"}
-      - Tech Stack: ${repoDetails.language || "Unknown"}
-      - Topics: ${repoDetails.topics?.join(", ") || "None"}
-      - Stats: ${repoDetails.stars} Stars, ${repoDetails.forks} Forks
+Analyze this GitHub repository for:
+- Open Source readiness
+- Resume value
+- Production quality
 
-      Generate a FULL REPORT in clean Markdown with these sections:
+Repository:
+Name: ${repoDetails.name}
+Description: ${repoDetails.description || "No description"}
+Tech Stack: ${repoDetails.language || "Unknown"}
+Stars: ${repoDetails.stars || 0}
+Forks: ${repoDetails.forks || 0}
 
-      1. REPOSITORY OVERVIEW
-      - Health Score (0-10)
-      - Is it production-ready? (Yes / No / Almost)
-      - Tech stack evaluation (Is it modern?)
+RULES:
+- No sugar coating
+- Use simple English + Hinglish ("ye missing hai", "ye karo")
+- Be practical
 
-      2. DOCUMENTATION & README QUALITY
-      - Rating (Poor / Average / Good / Excellent)
-      - Missing sections (Check for: Screenshots, Demo Link, Tests, CI/CD, License, CONTRIBUTING.md)
+Return MARKDOWN in this EXACT structure:
 
-      3. CODE STRUCTURE & BRANDING
-      - Predicted code quality (Beginner / Intermediate / Advanced)
-      - Suggestions for better folder structure
+## Overall Verdict
+(Strong / Average / Weak + one line)
 
-      4. 48-HOUR ENHANCEMENT CHECKLIST
-      [ ] List exactly what needs to be added first
+## Health Scores (0–10)
+Maintainability:
+Security:
+Documentation:
+Scalability:
+Code Quality:
 
-      5. ACTIONABLE ROADMAP
-      - Next 7 Days: Practical steps
-      - Next 30 Days: High impact changes for career
+## What Is MISSING
+(bullet list)
 
-      Tone: Honest, mentor-like, no fluff.
-    `;
+## 48-Hour Fix Plan
+Day 1:
+Day 2:
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+## Career Impact Advice
+(Resume + recruiter POV)
+`;
 
-    return NextResponse.json({ analysis: text });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.4,
+    });
+
+    const analysis = completion.choices[0].message.content;
+
+    // 🔥 SCORE EXTRACTION (SAFE)
+    const nums = analysis.match(/\b([0-9]|10)\b/g)?.map(Number) || [];
+
+    const scores = {
+      maintainability: nums[0] ?? 0,
+      security: nums[1] ?? 0,
+      documentation: nums[2] ?? 0,
+      scalability: nums[3] ?? 0,
+      codeQuality: nums[4] ?? 0,
+    };
+
+    return NextResponse.json({
+      analysis,
+      scores,
+    });
   } catch (error) {
-    console.error("AI Analysis Error:", error);
+    console.error("OpenAI Error:", error);
+
     return NextResponse.json(
-      { error: "AI model error. Try using 'gemini-pro' if flash is unavailable." },
+      {
+        error: "AI analysis failed",
+        details: error.message,
+      },
       { status: 500 }
     );
   }
