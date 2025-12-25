@@ -14,7 +14,7 @@ import {
   Legend,
 } from "chart.js";
 import RepoTechCard from "@/app/components/RepoTechCard";
-
+import RepoCommitAnalytics from "@/app/components/RepoCommitAnalytics";
 ChartJS.register(
   RadialLinearScale,
   PointElement,
@@ -32,7 +32,33 @@ const RepoDetailPage = () => {
   const [scores, setScores] = useState(null);
   const [sections, setSections] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+  const [commitWeeks, setCommitWeeks] = useState([]);
+
+  const fetchCommits = async (repoName, username) => {
+  try {
+    const res = await fetch(`/api/repo-commits/${repoName}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+
+    const json = await res.json();
+    if (data.pending) {
+    // ⏳ retry after 3 seconds
+    setTimeout(() => fetchCommits(repoName, username), 3000);
+    return;
+  }
+
+    setCommitWeeks(
+      Array.isArray(json.weeks) ? json.weeks : []
+    );
+  } catch (err) {
+    console.error("Commit fetch error:", err);
+    setCommitWeeks([]);
+  }
+};
+
+
 useEffect(() => {
   const loadRepoData = async () => {
     try {
@@ -57,7 +83,7 @@ useEffect(() => {
         router.push("/projects");
         return;
       }
-
+        fetchCommits(repo.name, parsed.profile.username);
       // ✅ CALL API
       const res = await fetch(`/api/repo-tech/${repo.name}`, {
         method: "POST",
@@ -95,6 +121,8 @@ useEffect(() => {
       setLoading(false);
     }
   };
+
+  
 
   loadRepoData();
 }, [params.repo]);
@@ -186,7 +214,7 @@ useEffect(() => {
     tech: repoData.tech || [],
   }}
 />
-
+<RepoCommitAnalytics weeks={commitWeeks} />
         {/* SCORE CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {scoreEntries.map(([key, value]) => (
