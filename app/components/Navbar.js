@@ -9,7 +9,6 @@ const navItems = [
   { name: "Home", icon: <Home size={18} />, path: "/" },
   { name: "Projects", icon: <Folder size={18} />, path: "/projects" },
   { name: "About", icon: <User size={18} />, path: "/about" },
-  { name: "Experience", icon: <Briefcase size={18} />, path: "/experience" },
   { name: "Contact", icon: <Mail size={18} />, path: "/contact" },
 ];
 
