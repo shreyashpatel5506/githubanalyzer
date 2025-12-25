@@ -65,13 +65,14 @@ const entries = Object.entries(normalized).sort(
 
       <div className="grid md:grid-cols-1 gap-12 items-center">
         {/* 🥧 PIE */}
-     <div className="w-full max-w-[620px] mx-auto">
+     <div className="w-full max-w-[760px] mx-auto
+                h-[360px] sm:h-[420px] md:h-[520px] lg:h-[600px]">
   <Pie
     data={chartData}
     options={{
       responsive: true,
       maintainAspectRatio: false,
-      cutout: "55%", // 👈 DONUT STYLE
+      cutout: "60%", // 👈 DONUT STYLE
       plugins: {
         legend: {
           position: "bottom",
