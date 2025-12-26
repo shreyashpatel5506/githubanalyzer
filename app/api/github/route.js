@@ -145,6 +145,7 @@ function normalizeRepos(repos) {
     .map((r) => ({
       id: r.id,
       name: r.name,
+      description:r.description,
       stars: r.stargazers_count,
       forks: r.forks_count,
       language: r.language,
