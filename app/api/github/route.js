@@ -149,6 +149,7 @@ function normalizeRepos(repos) {
       stars: r.stargazers_count,
       forks: r.forks_count,
       language: r.language,
+      liveDemo: r.homepage || null,
       pushedAt: r.pushed_at,
     }));
 }

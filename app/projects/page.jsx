@@ -131,7 +131,16 @@ const ProjectsPage = () => {
                     "No description provided for this repository."}
                 </p>
               </div>
-
+                  {repo.liveDemo && (
+  <a
+    href={repo.liveDemo}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white"
+  >
+    🚀 Live Demo
+  </a>
+)}
               <div className="mt-auto space-y-4">
                 {/* 🧪 TECH TAGS */}
                 <div className="flex flex-wrap gap-2">
