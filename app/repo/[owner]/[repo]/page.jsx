@@ -205,9 +205,9 @@ useEffect(() => {
             <Badge>{repoData.language}</Badge>
             <Badge>⭐ {repoData.stars}</Badge>
             <Badge>🍴 {repoData.forks}</Badge>
-            <Badge>{repo.liveDemo && (
+            <Badge>{repoData.liveDemo && (
   <a
-    href={repo.liveDemo}
+    href={repoData.liveDemo}
     target="_blank"
     rel="noopener noreferrer"
     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white"
