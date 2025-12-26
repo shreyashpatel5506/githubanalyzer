@@ -15,7 +15,7 @@ export default function SearchBar({ onSearch }) {
       />
       <button
         onClick={() => onSearch(username)}
-        className="bg-blue-600 px-4 py-2 rounded border-2 border-amber-50"
+        className="bg-blue-600 px-4 py-2 rounded-full border-amber-50 hover:scale-105 transition"
       >
         Analyze
       </button>
