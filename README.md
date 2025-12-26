@@ -9,11 +9,11 @@ It fetches repository details, detects the tech stack, analyzes commits, and pro
 
 This project is useful for:
 
-Developers showcasing their GitHub profile
+-Developers showcasing their GitHub profile
 
-Recruiters evaluating repositories
+-Recruiters evaluating repositories
 
-Open-source contributors exploring projects
+-Open-source contributors exploring projects
 
 ✨ Features
 
@@ -64,8 +64,12 @@ npm install
 
 Create a .env.local file:
 
-NEXT_PUBLIC_GITHUB_TOKEN=your_github_token
+```env
+# Example placeholder (do not use real token here)
+NEXT_PUBLIC_GITHUB_TOKEN=your_github_token_here
 
+
+⚠️ Do NOT commit your actual token to GitHub.
 
 Using a token helps avoid GitHub API rate limits.
 
@@ -101,15 +105,15 @@ Please read CONTRIBUTING.md before submitting a PR.
 
 🛣 Roadmap
 
- Weekly contribution graph
+ -Weekly contribution graph
 
- Contributor leaderboard
+ -Contributor leaderboard
 
- Repository comparison
+ -Repository comparison
 
- Public API for analysis
+ -Public API for analysis
 
- Export reports as PDF
+ -Export reports as PDF
 
 📄 License
 
@@ -135,11 +139,3 @@ Your support motivates continuous improvement ❤️
 Shreyash Patel
 GitHub: https://github.com/shreyashpatel5506
 Discord:https://discord.com/channels/1454057654577139804/1454057983762759774
-
-✅ Why this README is effective
-
-✔ Clear project purpose
-✔ Contributor-friendly
-✔ SEO optimized
-✔ Works well on GitHub, Openbase, LibHunt
-✔ Encourages stars & PRs
