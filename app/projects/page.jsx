@@ -136,13 +136,23 @@ const ProjectsPage = () => {
                   href={repo.liveDemo}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2.5 py-1 bg-slate-800
-                                     text-slate-300 rounded-lg
-                                     text-xs font-boldtext-sm font-semibold rounded-xlhover:bg-indigo-500 hover:text-white transition-colors"
+                  className="inline-flex items-center justify-center gap-1
+               w-[120px]   /* change to 100px or 150px */
+               px-2.5 py-1
+               bg-slate-800 text-slate-300
+               rounded-lg
+               text-xs font-bold mb-2
+               hover:bg-indigo-500 hover:text-white
+               transition-colors
+               shrink-0"
                 >
                   🚀 Live Demo
                 </a>
               )}
+
+
+
+
               <div className="mt-auto space-y-4">
                 {/* 🧪 TECH TAGS */}
                 <div className="flex flex-wrap gap-2">
@@ -154,7 +164,7 @@ const ProjectsPage = () => {
                     </span>
                   )}
 
-                  {repo.topics?.slice(0, 3).map((topic) => (
+                  {repo.topics?.slice(0, 8).map((topic) => (
                     <span
                       key={topic}
                       className="px-2.5 py-1 bg-indigo-500/10

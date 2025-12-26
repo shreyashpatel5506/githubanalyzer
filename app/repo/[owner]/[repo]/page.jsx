@@ -35,97 +35,97 @@ const RepoDetailPage = () => {
   const [commitWeeks, setCommitWeeks] = useState([]);
 
   const fetchCommits = async (repoName, username) => {
-  try {
-    const res = await fetch(`/api/repo-commits/${repoName}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username }),
-    });
-
-    const json = await res.json();
-    if (data.pending) {
-    // ⏳ retry after 3 seconds
-    setTimeout(() => fetchCommits(repoName, username), 3000);
-    return;
-  }
-
-    setCommitWeeks(
-      Array.isArray(json.weeks) ? json.weeks : []
-    );
-  } catch (err) {
-    console.error("Commit fetch error:", err);
-    setCommitWeeks([]);
-  }
-};
-
-
-useEffect(() => {
-  const loadRepoData = async () => {
     try {
-      const saved = localStorage.getItem("githubData");
-      if (!saved) {
-        router.push("/");
-        return;
-      }
-
-      const parsed = JSON.parse(saved);
-
-      // ✅ SAFE REPOS ARRAY
-      const allRepos = Array.isArray(parsed?.repos)
-        ? parsed.repos
-        : [];
-
-      const repo = allRepos.find(
-        (r) => r.name === params.repo
-      );
-
-      if (!repo) {
-        router.push("/projects");
-        return;
-      }
-        fetchCommits(repo.name, parsed.profile.username);
-      // ✅ CALL API
-      const res = await fetch(`/api/repo-tech/${repo.name}`, {
+      const res = await fetch(`/api/repo-commits/${repoName}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: parsed.profile.username,
-        }),
+        body: JSON.stringify({ username }),
       });
 
       const json = await res.json();
-
-      // ✅ DIRECTLY USE tech (NEW API RESPONSE)
-      setRepoData({
-        ...repo,
-        tech: Array.isArray(json?.tech) ? json.tech : [],
-      });
-
-      // ---------- AI CACHE ----------
-      const cacheKey = `analysis-${repo.name}`;
-      const cached = localStorage.getItem(cacheKey);
-
-      if (cached) {
-        const data = JSON.parse(cached);
-        if (data?.scores && data?.sections?.verdict) {
-          setScores(data.scores);
-          setSections(data.sections);
-          setLoading(false);
-          return;
-        }
+      if (json.pending) {
+        // ⏳ retry after 3 seconds
+        setTimeout(() => fetchCommits(repoName, username), 3000);
+        return;
       }
 
-      fetchAI(repo);
+      setCommitWeeks(
+        Array.isArray(json.weeks) ? json.weeks : []
+      );
     } catch (err) {
-      console.error("Repo detail error:", err);
-      setLoading(false);
+      console.error("Commit fetch error:", err);
+      setCommitWeeks([]);
     }
   };
 
-  
 
-  loadRepoData();
-}, [params.repo]);
+  useEffect(() => {
+    const loadRepoData = async () => {
+      try {
+        const saved = localStorage.getItem("githubData");
+        if (!saved) {
+          router.push("/");
+          return;
+        }
+
+        const parsed = JSON.parse(saved);
+
+        // ✅ SAFE REPOS ARRAY
+        const allRepos = Array.isArray(parsed?.repos)
+          ? parsed.repos
+          : [];
+
+        const repo = allRepos.find(
+          (r) => r.name === params.repo
+        );
+
+        if (!repo) {
+          router.push("/projects");
+          return;
+        }
+        fetchCommits(repo.name, parsed.profile.username);
+        // ✅ CALL API
+        const res = await fetch(`/api/repo-tech/${repo.name}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: parsed.profile.username,
+          }),
+        });
+
+        const json = await res.json();
+
+        // ✅ DIRECTLY USE tech (NEW API RESPONSE)
+        setRepoData({
+          ...repo,
+          tech: Array.isArray(json?.tech) ? json.tech : [],
+        });
+
+        // ---------- AI CACHE ----------
+        const cacheKey = `analysis-${repo.name}`;
+        const cached = localStorage.getItem(cacheKey);
+
+        if (cached) {
+          const data = JSON.parse(cached);
+          if (data?.scores && data?.sections?.verdict) {
+            setScores(data.scores);
+            setSections(data.sections);
+            setLoading(false);
+            return;
+          }
+        }
+
+        fetchAI(repo);
+      } catch (err) {
+        console.error("Repo detail error:", err);
+        setLoading(false);
+      }
+    };
+
+
+
+    loadRepoData();
+  }, [params.repo]);
 
 
 
@@ -177,8 +177,8 @@ useEffect(() => {
 
   const resumeVerdict =
     resumeScore >= 70 ? "YES" :
-    resumeScore >= 50 ? "MAYBE" :
-    "NO";
+      resumeScore >= 50 ? "MAYBE" :
+        "NO";
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-10">
@@ -201,39 +201,48 @@ useEffect(() => {
             {repoData.description || "No description provided"}
           </p>
 
-          <div className="flex gap-3 mt-4 flex-wrap">
+          <div className="flex gap-3 mt-4 mb-3 flex-wrap">
             <Badge>{repoData.language}</Badge>
             <Badge>⭐ {repoData.stars}</Badge>
             <Badge>🍴 {repoData.forks}</Badge>
             <Badge>{repoData.liveDemo && (
-  <a
-    href={repoData.liveDemo}
-    target="_blank"
-    rel="noopener noreferrer"
-  >
-    🚀 Live Demo
-  </a>
-)}</Badge>
+              <a
+                href={repoData.liveDemo}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                🚀 Live Demo
+              </a>
+            )}</Badge>
           </div>
+          {repoData.topics?.slice(0, 10).map((topic) => (
+            <span
+              key={topic}
+              className="px-2.5 py-1 mt-3 bg-indigo-500/10
+                                 text-indigo-300 rounded-lg
+                                 text-xs font-medium"
+            >
+              #{topic}
+            </span>
+          ))}
         </div>
 
-       <RepoTechCard
-  repo={{
-    ...repoData,
-    tech: repoData.tech || [],
-  }}
-/>
-<RepoCommitAnalytics weeks={commitWeeks} />
+        <RepoTechCard
+          repo={{
+            ...repoData,
+            tech: repoData.tech || [],
+          }}
+        />
+        <RepoCommitAnalytics weeks={commitWeeks} />
         {/* SCORE CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {scoreEntries.map(([key, value]) => (
             <div
               key={key}
-              className={`p-5 rounded-2xl border text-center font-black ${
-                key === weakest[0]
-                  ? "bg-red-900/40 border-red-500 text-red-300"
-                  : "bg-slate-900 border-slate-800 text-slate-200"
-              }`}
+              className={`p-5 rounded-2xl border text-center font-black ${key === weakest[0]
+                ? "bg-red-900/40 border-red-500 text-red-300"
+                : "bg-slate-900 border-slate-800 text-slate-200"
+                }`}
             >
               <div className="uppercase text-xs tracking-widest mb-2">
                 {key}
@@ -300,7 +309,7 @@ useEffect(() => {
           </ReactMarkdown>
         </Section>
 
-       
+
 
       </div>
     </div>

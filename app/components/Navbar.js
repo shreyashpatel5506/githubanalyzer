@@ -11,6 +11,7 @@ const navItems = [
   { name: "TechStack", icon: <CodeXml size={18} />, path: "/tech-stack" },
   { name: "About", icon: <User size={18} />, path: "/about" },
   { name: "Contact", icon: <Mail size={18} />, path: "/contact" },
+
 ];
 
 export default function Navbar() {
@@ -41,7 +42,7 @@ export default function Navbar() {
                   isActive
                     ? "bg-indigo-50 text-indigo-600 shadow-sm"
                     : "text-slate-500 hover:bg-gray-50 hover:text-slate-900"
-                }`}
+                  }`}
               >
                 <span
                   className={`${
