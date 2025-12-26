@@ -131,16 +131,18 @@ const ProjectsPage = () => {
                     "No description provided for this repository."}
                 </p>
               </div>
-                  {repo.liveDemo && (
-  <a
-    href={repo.liveDemo}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white"
-  >
-    🚀 Live Demo
-  </a>
-)}
+              {repo.liveDemo && (
+                <a
+                  href={repo.liveDemo}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 bg-slate-800
+                                     text-slate-300 rounded-lg
+                                     text-xs font-boldtext-sm font-semibold rounded-xlhover:bg-indigo-500 hover:text-white transition-colors"
+                >
+                  🚀 Live Demo
+                </a>
+              )}
               <div className="mt-auto space-y-4">
                 {/* 🧪 TECH TAGS */}
                 <div className="flex flex-wrap gap-2">
