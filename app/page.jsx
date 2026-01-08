@@ -1,16 +1,20 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import SearchBar from "./components/SearchBar";
 import ProfileAIAnalysis from "./components/ProfileAIAnalysis.jsx";
 import { exportToPDF } from "./utils/exportToPdf";
+import { useRouter } from "next/navigation";
+import { Share } from "lucide-react";
 
 const HomePage = () => {
+  const router = useRouter();
   const [data, setData] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [sharing, setSharing] = useState(false);
 
   /* 🔁 Load cached data */
   useEffect(() => {
@@ -21,6 +25,28 @@ const HomePage = () => {
       if (parsed.analysis) setAnalysis(parsed.analysis);
     }
   }, []);
+
+  /* 🔍 Check URL for username param */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const userParam = params.get('user');
+    if (userParam) {
+      fetchGithubData(userParam);
+    } else {
+      let storedUser = localStorage.getItem("githubData");
+      storedUser = JSON.parse(storedUser);
+      if (localStorage.getItem("githubData") == undefined || !storedUser) {
+        return;
+      } else {
+        router.push(`?user=${storedUser.profile.username}`, { scroll: false });
+      }
+    }
+  }, []);
+
+  const handleSearch = useCallback((username) => {
+    fetchGithubData(username);
+    router.push(`?user=${username}`, { scroll: false });
+  }, [router]);
 
   /* 🧠 AI PROFILE ANALYSIS */
   const fetchProfileAnalysis = async (githubData) => {
@@ -109,7 +135,7 @@ const HomePage = () => {
             </p>
 
             <div className="w-full max-w-md">
-              <SearchBar onSearch={fetchGithubData} />
+              <SearchBar onSearch={handleSearch} />
             </div>
 
             {error && (
@@ -151,6 +177,34 @@ const HomePage = () => {
                   <MiniStat label="Repos" value={data.profile.publicRepos} />
                 </div>
               </div>
+              <button aria-label="Share profile" onClick={() => setSharing(!sharing)} className="self-start bg-indigo-600 p-2 rounded-xl"><Share /></button>
+              {sharing && (
+                <>
+                  <div
+                    className="fixed inset-0 bg-black/50 z-40"
+                    onClick={() => setSharing(false)}
+                  />
+
+                  <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md bg-slate-800 border border-slate-600 rounded-xl p-6 shadow-2xl z-50">
+                    <div className="flex justify-between items-center mb-4">
+                      <p className="font-semibold text-indigo-300">Share Profile</p>
+                      <button onClick={() => setSharing(false)} className="text-slate-400 hover:text-white">✕</button>
+                    </div>
+
+                    <input
+                      type="text"
+                      readOnly
+                      value={typeof window !== "undefined" ? window.location.href : ""}
+                      className="w-full bg-slate-700 text-slate-200 px-3 py-3 rounded-md border border-slate-600 focus:outline-none focus:border-indigo-500"
+                      onFocus={(e) => e.target.select()}
+                    />
+
+                    <p className="text-xs text-slate-500 mt-3 text-center">
+                      Copy the link above to share this analysis.
+                    </p>
+                  </div>
+                </>
+              )}
             </section>
 
             {/* 📊 ACTIVITY STATS */}
@@ -162,46 +216,46 @@ const HomePage = () => {
             </section>
 
             {/* 🤖 AI ANALYSIS */}
-     
 
-{aiLoading ? (
-  <section className="bg-slate-900/80 border border-slate-700 rounded-3xl p-10 text-center">
-    <p className="text-xl font-bold mb-2 text-indigo-300">
-      AI is reviewing this profile
-    </p>
-    <p className="text-slate-400">
-      Evaluating consistency, project quality,
-      open-source impact, and hiring readiness…
-    </p>
-  </section>
-) : (
-  analysis && (
-    <section className="bg-slate-900/80 border border-slate-700 rounded-3xl p-6">
-      
-      {/* Header: Title + Small Button */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-indigo-300">
-          AI Analysis
-        </h2>
 
-        <button
-          onClick={() => exportToPDF("aianalysis")}
-          className="px-3 py-1.5 text-sm rounded-md 
+            {aiLoading ? (
+              <section className="bg-slate-900/80 border border-slate-700 rounded-3xl p-10 text-center">
+                <p className="text-xl font-bold mb-2 text-indigo-300">
+                  AI is reviewing this profile
+                </p>
+                <p className="text-slate-400">
+                  Evaluating consistency, project quality,
+                  open-source impact, and hiring readiness…
+                </p>
+              </section>
+            ) : (
+              analysis && (
+                <section className="bg-slate-900/80 border border-slate-700 rounded-3xl p-6">
+
+                  {/* Header: Title + Small Button */}
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-indigo-300">
+                      AI Analysis
+                    </h2>
+
+                    <button
+                      onClick={() => exportToPDF("aianalysis")}
+                      className="px-3 py-1.5 text-sm rounded-md 
                      bg-indigo-500 text-white 
                      hover:bg-indigo-600 transition"
-        >
-          Download PDF
-        </button>
-      </div>
+                    >
+                      Download PDF
+                    </button>
+                  </div>
 
-      {/* Analysis Content */}
-      <div id="aianalysis">
-        <ProfileAIAnalysis analysis={analysis} />
-      </div>
+                  {/* Analysis Content */}
+                  <div id="aianalysis">
+                    <ProfileAIAnalysis analysis={analysis} />
+                  </div>
 
-    </section>
-  )
-)}
+                </section>
+              )
+            )}
 
 
             {/* 🔁 RESET */}

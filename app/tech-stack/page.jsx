@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { normalizeTechStack } from "../lib/normalizeTechStack";
+import { Download } from "lucide-react"
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -44,58 +45,69 @@ export default function TechStackPage() {
 
   const topTech = entries[0];
 
+  const brandColors = [
+    "#6366f1", // Indigo-500 
+    "#8b5cf6", // Violet-500
+    "#3b82f6", // Blue-500
+    "#06b6d4", // Cyan-500
+    "#a855f7", // Purple-500
+    "#60a5fa", // Blue-400
+  ];
+
   const chartData = {
     labels: entries.map(([k]) => k),
     datasets: [
-  {
-    data: entries.map(([, v]) => v),
-    backgroundColor: entries.map(
-      (_, i) => `hsl(${i * 35}, 70%, 60%)`
-    ),
-    borderColor: "#0f172a",
-    borderWidth: 2,
-    hoverOffset: 20, // 🔥 expand on hover
-    hoverBorderWidth: 4,
-  },
-],
-
+      {
+        data: entries.map(([, v]) => v),
+        backgroundColor: entries.map(
+          (_, i) => brandColors[i % brandColors.length]
+        ),
+        borderColor: "#0f172a", 
+        borderWidth: 2,
+        hoverOffset: 20,
+        hoverBorderWidth: 4,
+        hoverBackgroundColor: entries.map(
+          (_, i) => brandColors[i % brandColors.length] + "ee"
+        ),
+      },
+    ],
   };
-const exportPDF = async () => {
-  try {
-    const stored = localStorage.getItem("githubData");
-    if (!stored) return;
+  const exportPDF = async () => {
+    try {
+      const stored = localStorage.getItem("githubData");
+      if (!stored) return;
 
-    const { profile } = JSON.parse(stored);
-    const username = profile.username; // ✅ DEFINE IT
+      const { profile } = JSON.parse(stored);
+      const username = profile.username; 
 
-    const res = await fetch("/api/tech-stack", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username,
-        format: "pdf",
-      }),
-    });
+      const res = await fetch("/api/tech-stack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          format: "pdf",
+        }),
+      });
 
-    if (!res.ok) {
-      throw new Error("PDF export failed");
+      if (!res.ok) {
+        throw new Error("PDF export failed");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${username}-tech-stack.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+    } catch (err) {
+      console.error("PDF export error:", err);
     }
-
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${username}-tech-stack.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-
-  } catch (err) {
-    console.error("PDF export error:", err);
-  }
-};
+  };
 
   const chartOptions = {
     responsive: true,
@@ -143,16 +155,6 @@ const exportPDF = async () => {
                         h-[360px] sm:h-[420px] md:h-[520px] lg:h-[600px]">
 
           <Pie data={chartData} options={chartOptions} />
-<button
-  onClick={exportPDF}
-  className="mx-auto mb-6 block rounded-full 
-             bg-indigo-600 px-6 py-3 
-             text-white font-bold 
-             hover:bg-indigo-500 transition"
->
-  Export as PDF
-</button>
-
           {/* 🧠 CENTER TEXT */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
             <p className="text-sm uppercase tracking-widest text-gray-400">
@@ -170,19 +172,34 @@ const exportPDF = async () => {
         </div>
 
         {/* 📊 TECH LIST */}
-        <div className="max-h-[520px] overflow-y-auto space-y-3 pr-2">
-          {entries.map(([tech, value]) => (
-            <div
-              key={tech}
-              className="flex justify-between rounded-xl border 
+        <div className="flex gap-4 flex-col max-h-[520px] overflow-y-auto space-y-3 pr-2">
+          <div className="flex flex-col gap-2">
+            {entries.map(([tech, value]) => (
+              <div
+                key={tech}
+                className="flex justify-between rounded-xl border 
                          border-slate-800 px-5 py-3 bg-slate-900/60"
+              >
+                <span className="font-semibold text-white">{tech}</span>
+                <span className="text-sm text-gray-400">
+                  {value}%
+                </span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div
+              onClick={exportPDF}
+              key="exportPDF"
+              className="flex justify-between rounded-xl border 
+                         border-slate-800 px-5 py-3 bg-indigo-600 cursor-pointer"
             >
-              <span className="font-semibold text-white">{tech}</span>
+              <span className="font-semibold text-white">Export as PDF</span>
               <span className="text-sm text-gray-400">
-                {value}%
+                <Download></Download>
               </span>
             </div>
-          ))}
+          </div>
         </div>
 
       </div>
