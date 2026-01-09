@@ -62,7 +62,9 @@ async function handleGitHubResponse(res, context) {
 /* ================== GRAPHQL (EXACT COMMITS) ================== */
 
 async function fetchExactContributions(username, headers) {
-  const fromDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const fromDate = new Date(
+    Date.now() - 90 * 24 * 60 * 60 * 1000
+  ).toISOString();
   const toDate = new Date().toISOString();
 
   const query = `
@@ -121,6 +123,16 @@ async function fetchAllRepos(username, headers) {
 
   return repos.slice(0, MAX_REPOS_TO_FETCH);
 }
+const ACTIVE_DAYS_THRESHOLD = 90;
+
+function isRepoActive(repo) {
+  if (repo.archived || repo.disabled) return false;
+
+  const lastPush = new Date(repo.pushed_at).getTime();
+  const cutoff = Date.now() - ACTIVE_DAYS_THRESHOLD * 24 * 60 * 60 * 1000;
+
+  return lastPush >= cutoff;
+}
 
 /* ================== NORMALIZERS ================== */
 
@@ -152,7 +164,8 @@ function normalizeRepos(repos) {
       liveDemo: r.homepage || null,
       pushedAt: r.pushed_at,
       updatedAt: r.updated_at,
-      topics: r.topics || []
+      topics: r.topics || [],
+      isActive: isRepoActive(r),
     }));
 }
 
@@ -178,30 +191,24 @@ export async function POST(req) {
     const headers = getGitHubHeaders();
 
     /* -------- PARALLEL FETCH -------- */
-    const [
-      profileRes,
-      repos,
-      totalPRRes,
-      mergedPRRes,
-      openPRRes,
-      graphStats,
-    ] = await Promise.all([
-      fetch(`${GITHUB_API}/users/${username}`, { headers }),
-      fetchAllRepos(username, headers),
-      fetch(
-        `${GITHUB_API}/search/issues?q=author:${username}+type:pr&per_page=1`,
-        { headers }
-      ),
-      fetch(
-        `${GITHUB_API}/search/issues?q=author:${username}+type:pr+is:merged&per_page=1`,
-        { headers }
-      ),
-      fetch(
-        `${GITHUB_API}/search/issues?q=author:${username}+type:pr+is:open&per_page=1`,
-        { headers }
-      ),
-      fetchExactContributions(username, headers),
-    ]);
+    const [profileRes, repos, totalPRRes, mergedPRRes, openPRRes, graphStats] =
+      await Promise.all([
+        fetch(`${GITHUB_API}/users/${username}`, { headers }),
+        fetchAllRepos(username, headers),
+        fetch(
+          `${GITHUB_API}/search/issues?q=author:${username}+type:pr&per_page=1`,
+          { headers }
+        ),
+        fetch(
+          `${GITHUB_API}/search/issues?q=author:${username}+type:pr+is:merged&per_page=1`,
+          { headers }
+        ),
+        fetch(
+          `${GITHUB_API}/search/issues?q=author:${username}+type:pr+is:open&per_page=1`,
+          { headers }
+        ),
+        fetchExactContributions(username, headers),
+      ]);
 
     const profileResult = await handleGitHubResponse(
       profileRes,

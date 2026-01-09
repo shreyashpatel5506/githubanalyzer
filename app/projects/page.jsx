@@ -119,18 +119,26 @@ const ProjectsPage = () => {
                 </div>
               )}
 
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-slate-100
-                               group-hover:text-indigo-300 transition-colors
-                               mb-2 truncate pr-16">
-                  {repo.name}
-                </h3>
+           <div className="flex items-start justify-between gap-3 mb-2">
+  <h3
+    className="text-xl font-bold text-slate-100
+               group-hover:text-indigo-300 transition-colors
+               truncate"
+  >
+    {repo.name}
+  </h3>
 
-                <p className="text-slate-400 text-sm line-clamp-3 mb-6 leading-relaxed">
-                  {repo.description ||
-                    "No description provided for this repository."}
-                </p>
-              </div>
+  <span
+    className={`shrink-0 px-2 py-1 text-xs rounded-full ${
+      repo.isActive
+        ? "bg-green-500/10 text-green-500"
+        : "bg-gray-500/10 text-gray-400"
+    }`}
+  >
+    {repo.isActive ? "Active" : "Inactive"}
+  </span>
+</div>
+
               {repo.liveDemo && (
                 <a
                   href={repo.liveDemo}
