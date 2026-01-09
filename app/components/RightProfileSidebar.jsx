@@ -53,7 +53,6 @@ export default function RightProfileSidebar() {
 )}
 
 
-      {/* 📱 MOBILE OVERLAY */}
       {open && (
         <div
           onClick={() => setOpen(false)}
