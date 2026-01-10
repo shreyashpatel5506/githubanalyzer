@@ -11,19 +11,26 @@ export default function RightProfileSidebar() {
   const [copied, setCopied] = useState(false);
 
   /* 🔁 Load profile from localStorage */
-  useEffect(() => {
+useEffect(() => {
+  const loadProfile = () => {
     const stored = localStorage.getItem("githubData");
     if (!stored) return;
-
+ 
     try {
       const parsed = JSON.parse(stored);
       if (parsed?.profile) {
         setProfile(parsed.profile);
       }
-    } catch (e) {
-      console.error("Invalid githubData");
-    }
-  }, []);
+    } catch {}
+  };
+
+  loadProfile(); // initial load
+
+  window.addEventListener("github-profile-updated", loadProfile);
+  return () =>
+    window.removeEventListener("github-profile-updated", loadProfile);
+}, []);
+
 
   if (!profile) return null;
 
