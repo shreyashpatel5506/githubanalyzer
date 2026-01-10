@@ -73,6 +73,7 @@ const HomePage = () => {
       const updated = { ...githubData, analysis: result.analysis };
       setData(updated);
       localStorage.setItem("githubData", JSON.stringify(updated));
+      window.dispatchEvent(new Event("github-profile-updated"));
     } catch (err) {
       console.error(err);
       setAnalysis({ error: "AI analysis failed. Try again later." });
@@ -99,7 +100,7 @@ const HomePage = () => {
 
       setData(result);
       localStorage.setItem("githubData", JSON.stringify(result));
-
+      window.dispatchEvent(new Event("github-profile-updated"));
       fetchProfileAnalysis(result);
     } catch (err) {
       setError("User not found or GitHub API error");
