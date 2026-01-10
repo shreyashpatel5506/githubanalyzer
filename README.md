@@ -66,8 +66,8 @@ GitProfile AI analyzes GitHub profiles and repositories to extract technology st
 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/gitprofile-ai.git
-cd gitprofile-ai
+git clone https://github.com/your-username/gitprofileAi.git
+cd gitprofileAi
 ```
 
 2. Install dependencies
