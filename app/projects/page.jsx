@@ -1,16 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Layout from "../components/Layout";
+import { Card, CardContent } from "../components/Card";
+import { Search, Filter, Star, GitFork, ExternalLink, Calendar, Activity, AlertCircle } from "lucide-react";
 
 const ProjectsPage = () => {
   const [data, setData] = useState(null);
   const [filteredRepos, setFilteredRepos] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLang, setSelectedLang] = useState("All");
+  const [sortBy, setSortBy] = useState("updated");
   const router = useRouter();
 
-  /* 🔁 Load data from localStorage */
+  /* Load data from localStorage */
   useEffect(() => {
     const savedData = localStorage.getItem("githubData");
     if (!savedData) {
@@ -28,195 +32,263 @@ const ProjectsPage = () => {
     }
   }, [router]);
 
-  /* 🔎 Filter logic */
+  /* Filter and sort logic */
   useEffect(() => {
     if (!data) return;
 
-    const filtered = data.repos.filter((repo) => {
+    let filtered = data.repos.filter((repo) => {
       const matchesSearch = repo.name
         .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+        .includes(searchTerm.toLowerCase()) ||
+        (repo.description && repo.description.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      const matchesLang =
-        selectedLang === "All" || repo.language === selectedLang;
+      const matchesLang = selectedLang === "All" || repo.language === selectedLang;
 
       return matchesSearch && matchesLang;
     });
 
-    setFilteredRepos(filtered);
-  }, [searchTerm, selectedLang, data]);
+    // Sort repositories
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "stars":
+          return b.stars - a.stars;
+        case "forks":
+          return b.forks - a.forks;
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "updated":
+        default:
+          return new Date(b.updatedAt) - new Date(a.updatedAt);
+      }
+    });
 
-  if (!data) return null;
+    setFilteredRepos(filtered);
+  }, [searchTerm, selectedLang, sortBy, data]);
+
+  if (!data) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 dark:text-gray-400">No GitHub data found. Please analyze a profile first.</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   const languages = [
     "All",
     ...new Set(data.repos.map((r) => r.language).filter(Boolean)),
   ];
 
-  return (
-    <div className="min-h-screen bg-slate-950 px-4 md:px-8 py-100">
-      <div className=" w-full
-    max-w-none
-    md:pr-80     
-    md:pl-4
-    space-y-10">
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
-        {/* ================= HEADER ================= */}
-        <div className="mb-10">
-          <h1 className="text-4xl font-extrabold text-indigo-300 tracking-tight">
+  const getLanguageColor = (language) => {
+    const colors = {
+      JavaScript: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400",
+      TypeScript: "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400",
+      Python: "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400",
+      Java: "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400",
+      "C++": "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400",
+      Go: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-400",
+      Rust: "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400",
+    };
+    return colors[language] || "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+  };
+
+  return (
+    <Layout>
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
             Projects
-            <span className="text-slate-500 text-2xl font-medium ml-2">
-              ({data.repos.length})
+            <span className="text-lg font-normal text-gray-500 dark:text-gray-400 ml-2">
+              ({data.repos.length} repositories)
             </span>
           </h1>
-          <p className="text-slate-400 mt-2 text-lg">
-            Browse and analyze all public repositories.
+          <p className="text-gray-600 dark:text-gray-400">
+            Browse and explore all public repositories from {data.profile.username}
           </p>
         </div>
 
-        {/* ================= FILTER BAR ================= */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              placeholder="Search repositories..."
-              className="w-full pl-12 pr-4 py-3 bg-slate-900 border border-slate-700 rounded-xl
-                         text-slate-100 placeholder-slate-500
-                         focus:ring-2 focus:ring-indigo-500 outline-none"
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <span className="absolute left-4 top-3.5 text-slate-500">🔍</span>
-          </div>
-
-          <select
-            className="px-6 py-3 bg-slate-900 border border-slate-700 rounded-xl
-                       text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500"
-            onChange={(e) => setSelectedLang(e.target.value)}
-          >
-            {languages.map((lang) => (
-              <option key={lang} value={lang}>
-                {lang}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* ================= REPO GRID ================= */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredRepos.map((repo) => (
-            <div
-              key={repo.id}
-              onClick={() =>
-                router.push(`/repo/${data.profile.username}/${repo.name}`)
-              }
-              className="group bg-slate-900 border border-slate-700
-                         rounded-2xl p-6 cursor-pointer
-                         hover:border-indigo-500/60
-                         hover:shadow-xl hover:shadow-indigo-500/10
-                         transition-all flex flex-col relative"
-            >
-              {/* 📌 PINNED */}
-              {repo.isPinned && (
-                <div className="absolute top-4 right-4 text-indigo-300 bg-indigo-500/10
-                                px-2 py-1 rounded-md text-[10px] font-bold uppercase">
-                  📌 Pinned
-                </div>
-              )}
-
-              {/* 🔠 NAME + STATUS BADGE */}
-              <div className="flex items-center gap-3 mb-2">
-                <h3
-                  className="text-xl font-bold text-slate-100
-                             group-hover:text-indigo-300
-                             transition-colors truncate flex-1"
-                >
-                  {repo.name}
-                </h3>
-
-                <span
-                  className={`shrink-0 px-2 py-1 text-xs rounded-full font-semibold ${
-                    repo.isActive
-                      ? "bg-green-500/10 text-green-400"
-                      : "bg-gray-500/10 text-gray-400"
-                  }`}
-                >
-                  {repo.isActive ? "Active" : "Inactive"}
-                </span>
+        {/* Filters */}
+        <Card className="mb-8">
+          <CardContent className="p-6">
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search */}
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search repositories..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-700 
+                           rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white 
+                           placeholder:text-gray-500 focus:outline-none focus:ring-2 
+                           focus:ring-emerald-500 focus:border-transparent"
+                />
               </div>
 
-              {/* 📝 DESCRIPTION */}
-              <p className="text-slate-400 text-sm line-clamp-3 mb-4">
-                {repo.description || "No description provided."}
-              </p>
-
-              {/* 🚀 LIVE DEMO */}
-              {repo.liveDemo && (
-                <a
-                  href={repo.liveDemo}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1
-                             w-fit px-3 py-1 mb-3
-                             bg-slate-800 text-slate-300
-                             rounded-lg text-xs font-bold
-                             hover:bg-indigo-500 hover:text-white"
+              {/* Language Filter */}
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  value={selectedLang}
+                  onChange={(e) => setSelectedLang(e.target.value)}
+                  className="pl-10 pr-8 py-3 border border-gray-200 dark:border-gray-700 
+                           rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white 
+                           focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent
+                           appearance-none cursor-pointer min-w-[140px]"
                 >
-                  🚀 Live Demo
-                </a>
-              )}
-
-              {/* 🔻 BOTTOM SECTION */}
-              <div className="mt-auto space-y-4">
-                {/* 🧪 TECH TAGS */}
-                <div className="flex flex-wrap gap-2">
-                  {repo.language && (
-                    <span className="px-2.5 py-1 bg-slate-800
-                                     text-slate-300 rounded-lg
-                                     text-xs font-bold">
-                      {repo.language}
-                    </span>
-                  )}
-
-                  {repo.topics?.slice(0, 6).map((topic) => (
-                    <span
-                      key={topic}
-                      className="px-2.5 py-1 bg-indigo-500/10
-                                 text-indigo-300 rounded-lg
-                                 text-xs font-medium"
-                    >
-                      #{topic}
-                    </span>
+                  {languages.map((lang) => (
+                    <option key={lang} value={lang}>
+                      {lang}
+                    </option>
                   ))}
-                </div>
+                </select>
+              </div>
 
-                {/* 📊 STATS */}
-                <div className="flex items-center justify-between pt-4
-                                border-t border-slate-700
-                                text-slate-400 text-sm">
-                  <div className="flex gap-4">
-                    <span>⭐ {repo.stars}</span>
-                    <span>🍴 {repo.forks}</span>
+              {/* Sort */}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-4 py-3 border border-gray-200 dark:border-gray-700 
+                         rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white 
+                         focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent
+                         appearance-none cursor-pointer min-w-[120px]"
+              >
+                <option value="updated">Recently Updated</option>
+                <option value="stars">Most Stars</option>
+                <option value="forks">Most Forks</option>
+                <option value="name">Name A-Z</option>
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Repository Grid */}
+        {filteredRepos.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredRepos.map((repo) => (
+              <Card 
+                key={repo.id} 
+                hover 
+                className="cursor-pointer group"
+                onClick={() => router.push(`/repo/${data.profile.username}/${repo.name}`)}
+              >
+                <CardContent className="p-6">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-emerald-600 
+                                 dark:group-hover:text-emerald-400 transition-colors truncate flex-1 mr-2">
+                      {repo.name}
+                    </h3>
+                    
+                    {repo.isActive && (
+                      <div className="flex items-center gap-1 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/20 
+                                    text-emerald-700 dark:text-emerald-400 rounded-full text-xs font-medium">
+                        <Activity className="w-3 h-3" />
+                        Active
+                      </div>
+                    )}
                   </div>
 
-                  <span className="text-[11px] uppercase opacity-60">
-                    Updated{" "}
-                    {new Date(repo.updatedAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+                  {/* Description */}
+                  <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 mb-4 min-h-[2.5rem]">
+                    {repo.description || "No description provided"}
+                  </p>
 
-        {/* ================= EMPTY STATE ================= */}
-        {filteredRepos.length === 0 && (
-          <div className="text-center py-20 text-slate-400">
-            No projects found.
+                  {/* Homepage Link */}
+                  {repo.homepage && (
+                    <a
+                      href={repo.homepage}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 
+                               hover:text-emerald-700 dark:hover:text-emerald-300 text-sm font-medium mb-4"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Live Demo
+                    </a>
+                  )}
+
+                  {/* Topics */}
+                  {repo.topics && repo.topics.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-4">
+                      {repo.topics.slice(0, 3).map((topic) => (
+                        <span
+                          key={topic}
+                          className="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 
+                                   rounded text-xs font-medium"
+                        >
+                          {topic}
+                        </span>
+                      ))}
+                      {repo.topics.length > 3 && (
+                        <span className="px-2 py-1 text-gray-500 dark:text-gray-400 text-xs">
+                          +{repo.topics.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Language */}
+                  {repo.language && (
+                    <div className="mb-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getLanguageColor(repo.language)}`}>
+                        {repo.language}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Stats */}
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-4 h-4" />
+                        <span>{repo.stars}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <GitFork className="w-4 h-4" />
+                        <span>{repo.forks}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                      <Calendar className="w-3 h-3" />
+                      <span>{formatDate(repo.updatedAt)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
+        ) : (
+          <Card>
+            <CardContent className="text-center py-12">
+              <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                No repositories found
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Try adjusting your search terms or filters to find repositories.
+              </p>
+            </CardContent>
+          </Card>
         )}
       </div>
-    </div>
+    </Layout>
   );
 };
 
