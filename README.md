@@ -1,141 +1,135 @@
-# GitProfile AI 🚀
+# GitProfile AI
 
-GitProfile AI is a developer tool for analyzing GitHub profiles and repositories.  
-It provides clear insights into technology usage, contribution activity, and repository structure—without manual review.
-
----
-
-## 🔍 What This Project Does
-
-GitProfile AI fetches and processes GitHub data to deliver:
-- Repository-level analysis
-- Profile-level contribution insights
-- Technology stack detection
-- Commit and activity summaries
-
-The goal is to reduce the time required to evaluate a GitHub profile or repository while maintaining clarity and accuracy.
+Automated GitHub profile and repository analysis for developers, recruiters, and open-source contributors.
 
 ---
 
-## 👥 Who It’s For
+## Overview
 
-- **Recruiters** reviewing GitHub profiles during hiring
-- **Developers** evaluating repositories before contributing
+GitProfile AI analyzes GitHub profiles and repositories to extract technology stacks, contribution patterns, and repository insights. Built for developers who need to quickly evaluate codebases and profiles without manual review.
+
+**Key capabilities:**
+- Repository-level technology stack detection
+- Profile contribution analysis and activity summaries
+- Commit pattern insights
+- Clean, API-driven architecture
+
+---
+
+## Who It's For
+
+- **Recruiters** evaluating candidate GitHub profiles during technical hiring
+- **Developers** assessing repositories before contributing or integrating
 - **Open-source contributors** exploring unfamiliar projects
-- **Students** learning real-world repository analysis
+- **Engineering teams** conducting codebase reviews and technology audits
 
 ---
 
-## ✨ Key Features
+## Features
 
-- GitHub profile and repository analysis
-- Tech stack detection based on repository data
-- Commit and contribution insights
-- Clean, responsive UI focused on readability
-- API-backed architecture with scalable endpoints
+- **Profile Analysis** — Comprehensive GitHub profile insights including contribution activity, repository distribution, and technology preferences
+- **Repository Analysis** — Deep dive into repository structure, dependencies, and commit patterns
+- **Tech Stack Detection** — Automated identification of languages, frameworks, and tools used across repositories
+- **API Architecture** — Scalable backend with RESTful endpoints for programmatic access
+- **Modern UI** — Responsive interface built with React and Tailwind CSS
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
-### Frontend
-- React  
-- Next.js (App Router)  
-- Tailwind CSS  
+#### Frontend
+- React
+- Next.js (App Router)
+- Tailwind CSS
 
-### Backend
-- Node.js  
-- Next.js API Routes  
+#### Backend
+- Node.js
+- Next.js API Routes
 
-### External APIs
-- GitHub REST API  
+#### APIs
+- GitHub REST API
 
-### Deployment
-- Vercel  
+#### Deployment
+- Vercel
 
-🏁 Getting Started
-1️⃣ Clone the repository
-git clone https://github.com/your-username/gitprofile-ai.git
+---
 
-2️⃣ Install dependencies
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- GitHub Personal Access Token (optional, recommended for higher rate limits)
+
+### Installation
+
+1. Clone the repository
+
+```bash
+git clone https://github.com/your-username/gitprofileAi.git
+cd gitprofileAi
+```
+
+2. Install dependencies
+
+```bash
 npm install
+```
 
-3️⃣ Set up environment variables
+3. Configure environment variables
 
-Create a .env.local file:
+Create a `.env.local` file in the root directory:
 
 ```env
-# Example placeholder (do not use real token here)
 GITHUB_TOKEN=your_github_token_here
 ```
 
-⚠️ Do NOT commit your actual token to GitHub.
-Using a token helps avoid GitHub API rate limits.
+> **Note:** A GitHub token is optional but recommended to avoid API rate limits. Never commit your token to version control.
 
-4️⃣ Run the project
-```
+4. Run the development server
+
+```bash
 npm run dev
 ```
 
-Open ```http://localhost:3000```
- in your browser.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-🤝 Contributing
+---
 
-Contributions are welcome! 🎉
+## Contributing
 
-Steps to contribute:
+We welcome contributions. Please follow these steps:
 
-Fork the repository
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature-name`)
+3. Make your changes
+4. Commit with clear messages (`git commit -m 'Add feature'`)
+5. Push to your fork (`git push origin feature/your-feature-name`)
+6. Open a Pull Request
 
-Create a new branch
+Please read `CONTRIBUTING.md` for detailed guidelines before submitting a PR.
 
-```git checkout -b feature-name```
+---
 
+## Roadmap
 
-Make your changes
+- [ ] Weekly contribution graph visualization
+- [ ] Contributor leaderboard and activity metrics
+- [ ] Multi-repository comparison tool
+- [ ] Public REST API for programmatic access
+- [ ] PDF export for analysis reports
+- [ ] Enhanced language and framework detection
 
-Commit your changes
+---
 
-Push to your fork
+## License
 
-Create a Pull Request
+MIT License. See `LICENSE` for details.
 
-Please read CONTRIBUTING.md before submitting a PR.
+---
 
-🛣 Roadmap
+## Contact
 
- -Weekly contribution graph
-
- -Contributor leaderboard
-
- -Repository comparison
-
- -Public API for analysis
-
- -Export reports as PDF
-
-📄 License
-
-This project is licensed under the MIT License.
-You are free to use, modify, and distribute it.
-
-🌟 Support the Project
-
-If you find this project useful:
-
-⭐ Star the repository
-
-🍴 Fork it
-
-🐛 Report bugs
-
-🤝 Contribute code
-
-Your support motivates continuous improvement ❤️
-
-📬 Contact
-
-Shreyash Patel
-GitHub: https://github.com/shreyashpatel5506
-Discord:https://discord.com/channels/1454057654577139804/1454057983762759774
+#### Shreyash Patel
+- GitHub: [@shreyashpatel5506](https://github.com/shreyashpatel5506)
+- Discord: [Community Server](https://discord.gg/YOUR_INVITE_CODE)
