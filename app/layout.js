@@ -1,45 +1,43 @@
-import { Roboto } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import Navbar from "./components/Navbar.js";
-import RightProfileSidebar from "./components/RightProfileSidebar";
 
-const roboto = Roboto({
-  weight: ["400", "700"], // 400 for regular, 700 for bold
-  subsets: ["latin"], // 'latin' is standard
-  display: "swap", // Recommended for performance
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
 });
 
 // METADATA API (Next.js 13+)
 export const metadata = {
-  title: "GitProfileAi - AI GitHub Profile Analyzer",
+  title: "GitProfile AI - AI-Powered GitHub Profile Analysis",
   description:
-    "AI-powered GitHub profile analyzer with tech stack insights, project health scoring, and PDF export features.",
+    "Get comprehensive AI analysis of GitHub profiles with recruiter-grade insights, skill assessments, and improvement recommendations.",
   keywords: [
     "GitHub",
     "AI",
-    "Analyzer",
-    "Profile",
-    "Repository",
-    "Tech Stack",
-    "Developer Tools",
+    "Profile Analysis",
+    "Developer Assessment",
+    "Coding Skills",
+    "Recruiter Tools",
+    "Tech Hiring",
   ],
-  authors: [{ name: "gitprofileAi Team" }],
+  authors: [{ name: "GitProfile AI Team" }],
 
   // Open Graph
   openGraph: {
-    title: "GitProfileAi - AI GitHub Profile Analyzer",
+    title: "GitProfile AI - AI-Powered GitHub Profile Analysis",
     description:
-      "Analyze any GitHub profile with AI. Get tech stack insights and project health scores.",
+      "Analyze any GitHub profile with AI. Get recruiter-grade insights and skill assessments.",
     url: "https://gitprofileai.vercel.app",
-    siteName: "GitProfileAi",
+    siteName: "GitProfile AI",
     type: "website",
   },
 
   // Twitter Cards
   twitter: {
     card: "summary_large_image",
-    title: "GitProfileAi - AI GitHub Profile Analyzer",
-    description: "AI-powered GitHub profile analyzer",
+    title: "GitProfile AI - AI-Powered GitHub Profile Analysis",
+    description: "Get comprehensive AI analysis of GitHub profiles",
   },
 
   // Robots (SEO)
@@ -55,12 +53,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body
-        className={`${roboto.className} antialiased md:ml-56 pt-14 md:pt-0`}
-      >
-        <Navbar />
-        <RightProfileSidebar />
+    <html lang="en" className={inter.variable}>
+      <body className="font-sans antialiased">
         {children}
       </body>
     </html>

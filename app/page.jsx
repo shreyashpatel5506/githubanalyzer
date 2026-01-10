@@ -1,11 +1,15 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import Layout from "./components/Layout";
 import SearchBar from "./components/SearchBar";
-import ProfileAIAnalysis from "./components/ProfileAIAnalysis.jsx";
+import ProfileCard from "./components/ProfileCard";
+import ProfileAIAnalysis from "./components/ProfileAIAnalysis";
+import { StatsGrid } from "./components/StatsGrid";
+import { Card, CardContent } from "./components/Card";
 import { exportToPDF } from "./utils/exportToPdf";
 import { useRouter } from "next/navigation";
-import { LoaderPinwheel, Share } from "lucide-react";
+import { Sparkles, Brain, Share2, RotateCcw } from "lucide-react";
 
 const HomePage = () => {
   const router = useRouter();
@@ -16,7 +20,7 @@ const HomePage = () => {
   const [error, setError] = useState(null);
   const [sharing, setSharing] = useState(false);
 
-  /* 🔁 Load cached data */
+  /* Load cached data */
   useEffect(() => {
     const stored = localStorage.getItem("githubData");
     if (stored) {
@@ -26,7 +30,7 @@ const HomePage = () => {
     }
   }, []);
 
-  /* 🔍 Check URL for username param */
+  /* Check URL for username param */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const userParam = params.get("user");
@@ -51,7 +55,7 @@ const HomePage = () => {
     [router]
   );
 
-  /* 🧠 AI PROFILE ANALYSIS */
+  /* AI Profile Analysis */
   const fetchProfileAnalysis = async (githubData) => {
     setAiLoading(true);
     try {
@@ -67,7 +71,6 @@ const HomePage = () => {
       });
 
       const result = await res.json();
-
       setAnalysis(result.analysis);
 
       const updated = { ...githubData, analysis: result.analysis };
@@ -82,7 +85,7 @@ const HomePage = () => {
     }
   };
 
-  /* 🔎 FETCH GITHUB PROFILE */
+  /* Fetch GitHub Profile */
   const fetchGithubData = async (username) => {
     setLoading(true);
     setError(null);
@@ -110,226 +113,251 @@ const HomePage = () => {
     }
   };
 
-  /* ⏳ GLOBAL LOADING */
-  if (loading) {
-  return (
-    <div className="flex flex-col items-center justify-center h-screen gap-4 bg-slate-950">
-      <LoaderPinwheel className="animate-spin w-14 h-14 text-indigo-500" />
-      <p className="text-slate-400 font-medium">
-        Fetching GitHub profile data…
-      </p>
-    </div>
-  );
-}
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
-      <div className="max-w-6xl mx-auto px-4 md:mx-8 pt-12">
-        {/* ================= LANDING ================= */}
-        {!data && (
-          <div className="flex flex-col items-center justify-center h-[65vh] text-center">
-            <h1 className="text-5xl md:text-6xl font-extrabold text-indigo-300 mb-4">
-              GitProfile AI
-            </h1>
-
-            <p className="text-slate-400 mb-10 max-w-xl text-lg">
-              Recruiter-style AI analysis of your GitHub profile. Find out if
-              your profile is actually hire-ready.
-            </p>
-
-            <div className="w-full max-w-md">
-              <SearchBar onSearch={handleSearch} />
-            </div>
-
-            {error && (
-              <p className="mt-6 text-red-300 bg-red-500/10 px-4 py-2 rounded-xl border border-red-500/30">
-                {error}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* ================= RESULT ================= */}
-        {data && (
-          <div className="space-y-12 animate-in fade-in duration-700">
-            {/* 👤 PROFILE CARD */}
-            <section className="bg-slate-900/80 border border-slate-700 rounded-3xl p-8 flex flex-col lg:flex-row gap-2 md:items-start">
-              <img
-                src={data.profile.avatarUrl}
-                alt="avatar"
-                className="w-full h-full lg:w-36 lg:h-36 rounded-3xl shadow border border-slate-700"
-              />
-
-              <div className="flex-1 text-center md:text-left">
-                <h1 className="text-3xl font-black text-slate-100 leading-tight">
-                  {data.profile.name || data.profile.username}
-                </h1>
-
-                <p className="text-slate-400 mb-2">@{data.profile.username}</p>
-
-                <p className="text-slate-300 max-w-2xl mb-6 leading-relaxed">
-                  {data.profile.bio || "No bio provided"}
-                </p>
-
-                <div className="flex gap-4 justify-center md:justify-start">
-                  <MiniStat label="Followers" value={data.profile.followers} />
-                  <MiniStat label="Following" value={data.profile.following} />
-                  <MiniStat label="Repos" value={data.profile.publicRepos} />
-                </div>
-              </div>
-
-              <button
-                aria-label="Share profile"
-                onClick={() => setSharing(!sharing)}
-                className="md:ml-auto self-center lg:self-start bg-indigo-600 p-2 rounded-xl hover:bg-indigo-500 transition"
-              >
-                <Share />
-              </button>
-
-              {sharing && (
-                <>
-                  <div
-                    className="fixed inset-0 bg-black/50 z-40"
-                    onClick={() => setSharing(false)}
-                  />
-
-                  <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md bg-slate-800 border border-slate-600 rounded-xl p-6 shadow-2xl z-50">
-                    <div className="flex justify-between items-center mb-4">
-                      <p className="font-semibold text-indigo-300">
-                        Share Profile
-                      </p>
-                      <button
-                        onClick={() => setSharing(false)}
-                        className="text-slate-400 hover:text-white"
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    <input
-                      type="text"
-                      readOnly
-                      value={
-                        typeof window !== "undefined"
-                          ? window.location.href
-                          : ""
-                      }
-                      className="w-full bg-slate-700 text-slate-200 px-3 py-3 rounded-md border border-slate-600 focus:outline-none focus:border-indigo-500"
-                      onFocus={(e) => e.target.select()}
-                    />
-
-                    <p className="text-xs text-slate-500 mt-3 text-center">
-                      Copy the link above to share this analysis.
-                    </p>
-                  </div>
-                </>
-              )}
-            </section>
-
-            {/* 📊 ACTIVITY STATS */}
-            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard
-                title="Open PRs"
-                value={data.pullRequests.open}
-                color="blue"
-              />
-              <StatCard
-                title="Merged PRs"
-                value={data.pullRequests.merged}
-                color="green"
-              />
-              <StatCard
-                title="Recent Commits"
-                value={data.recentActivity.commits}
-                color="purple"
-              />
-              <StatCard
-                title="Active Repos"
-                value={data.recentActivity.activeRepositories}
-                color="orange"
-              />
-            </section>
-
-            {/* 🤖 AI ANALYSIS */}
-
-            {aiLoading ? (
-              <section className="bg-slate-900/80 border border-slate-700 rounded-3xl p-10 text-center">
-                <p className="text-xl font-bold mb-2 text-indigo-300">
-                  AI is reviewing this profile
-                </p>
-                <p className="text-slate-400">
-                  Evaluating consistency, project quality, open-source impact,
-                  and hiring readiness…
-                </p>
-              </section>
-            ) : (
-              analysis && (
-                <section className="bg-slate-900/80 border border-slate-700 rounded-3xl p-6">
-                  {/* Header: Title + Small Button */}
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-indigo-300">
-                      AI Analysis
-                    </h2>
-
-                    <button
-                      onClick={() => exportToPDF("aianalysis")}
-                      className="px-3 py-1.5 text-sm rounded-md 
-                     bg-indigo-500 text-white 
-                     hover:bg-indigo-600 transition"
-                    >
-                      Download PDF
-                    </button>
-                  </div>
-
-                  {/* Analysis Content */}
-                  <div id="aianalysis">
-                    <ProfileAIAnalysis analysis={analysis} />
-                  </div>
-                </section>
-              )
-            )}
-
-            {/* 🔁 RESET */}
-            <div className="text-center pt-6">
-              <button
-                onClick={() => {
-                  localStorage.removeItem("githubData");
-                  setData(null);
-                  setAnalysis(null);
-                }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-full font-bold transition"
-              >
-                Analyze Another GitHub Profile
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-/* ---------- UI PARTS ---------- */
-
-const MiniStat = ({ label, value }) => (
-  <div className="bg-slate-800/80 border border-slate-600 px-4 py-3 rounded-xl text-center min-w-[90px]">
-    <p className="text-xl font-black text-slate-100">{value}</p>
-    <p className="text-sm text-slate-400">{label}</p>
-  </div>
-);
-
-const StatCard = ({ title, value, color }) => {
-  const colors = {
-    blue: "bg-blue-500/10 text-blue-300 border-blue-400/30",
-    green: "bg-emerald-500/10 text-emerald-300 border-emerald-400/30",
-    purple: "bg-indigo-500/10 text-indigo-300 border-indigo-400/30",
-    orange: "bg-orange-500/10 text-orange-300 border-orange-400/30",
+  const handleShare = () => {
+    setSharing(true);
   };
 
+  const handleReset = () => {
+    localStorage.removeItem("githubData");
+    setData(null);
+    setAnalysis(null);
+    router.push("/", { scroll: false });
+  };
+
+  const handleExportPDF = () => {
+    exportToPDF("ai-analysis");
+  };
+
+  /* Loading State */
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+          <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400 font-medium">
+            Analyzing GitHub profile...
+          </p>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
-    <div className={`p-6 rounded-2xl border ${colors[color]}`}>
-      <h3 className="text-sm font-bold uppercase opacity-70 mb-1">{title}</h3>
-      <p className="text-4xl font-black">{value}</p>
-    </div>
+    <Layout>
+      {/* Hero Section */}
+      {!data && (
+        <div className="relative overflow-hidden">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-blue-50 dark:from-gray-900 dark:to-gray-800"></div>
+          <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+          
+          <div className="relative max-w-4xl mx-auto px-4 py-20 text-center">
+            {/* Hero Content */}
+            <div className="mb-12">
+              <div className="flex items-center justify-center mb-6">
+                <div className="p-3 bg-emerald-600 rounded-2xl shadow-lg">
+                  <Sparkles className="w-8 h-8 text-white" />
+                </div>
+              </div>
+              
+              <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6 leading-tight">
+                <span className="gradient-text">GitProfile</span> AI
+              </h1>
+              
+              <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-4 max-w-3xl mx-auto leading-relaxed">
+                Get AI-powered insights into GitHub profiles and coding expertise
+              </p>
+              
+              <p className="text-lg text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
+                Analyze any GitHub profile with recruiter-grade insights, skill assessments, and improvement recommendations
+              </p>
+            </div>
+
+            {/* Search */}
+            <div className="mb-12">
+              <SearchBar onSearch={handleSearch} loading={loading} />
+            </div>
+
+            {/* Features */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+              <div className="text-center p-6">
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <Brain className="w-6 h-6 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">AI Analysis</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Advanced AI evaluates coding skills, project quality, and hiring readiness
+                </p>
+              </div>
+              
+              <div className="text-center p-6">
+                <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-6 h-6 text-emerald-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Instant Insights</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Get comprehensive analysis in seconds with actionable recommendations
+                </p>
+              </div>
+              
+              <div className="text-center p-6">
+                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <Share2 className="w-6 h-6 text-purple-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Share Results</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Export and share professional analysis reports with recruiters
+                </p>
+              </div>
+            </div>
+
+            {/* Error State */}
+            {error && (
+              <Card className="max-w-md mx-auto mt-8 border-red-200 dark:border-red-800">
+                <CardContent className="text-center py-6">
+                  <p className="text-red-600 dark:text-red-400 font-medium">{error}</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Results Section */}
+      {data && (
+        <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
+          {/* Header Actions */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Profile Analysis
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Comprehensive GitHub profile evaluation
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 
+                         text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 
+                         dark:hover:bg-gray-700 transition-colors"
+              >
+                <Share2 className="w-4 h-4" />
+                Share
+              </button>
+              
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white 
+                         rounded-lg hover:bg-emerald-700 transition-colors"
+              >
+                <RotateCcw className="w-4 h-4" />
+                New Analysis
+              </button>
+            </div>
+          </div>
+
+          {/* Profile Card */}
+          <ProfileCard profile={data.profile} onShare={handleShare} />
+
+          {/* Stats Grid */}
+          <StatsGrid 
+            stats={[
+              {
+                title: "Open PRs",
+                value: data.pullRequests.open,
+                icon: "pullRequests",
+                color: "blue"
+              },
+              {
+                title: "Merged PRs", 
+                value: data.pullRequests.merged,
+                icon: "pullRequests",
+                color: "green"
+              },
+              {
+                title: "Recent Commits",
+                value: data.recentActivity.commits,
+                icon: "commits", 
+                color: "purple"
+              },
+              {
+                title: "Active Repos",
+                value: data.recentActivity.activeRepositories,
+                icon: "trending",
+                color: "orange"
+              }
+            ]}
+          />
+
+          {/* AI Analysis */}
+          {aiLoading ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  AI Analysis in Progress
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Evaluating profile consistency, project quality, and hiring readiness...
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            analysis && (
+              <ProfileAIAnalysis 
+                analysis={analysis} 
+                onExport={handleExportPDF}
+              />
+            )
+          )}
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {sharing && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => setSharing(false)}
+          />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md z-50">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Share Analysis
+                  </h3>
+                  <button
+                    onClick={() => setSharing(false)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 
+                             p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <input
+                  type="text"
+                  readOnly
+                  value={typeof window !== "undefined" ? window.location.href : ""}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 
+                           dark:border-gray-700 rounded-lg text-gray-900 dark:text-white 
+                           focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  onFocus={(e) => e.target.select()}
+                />
+                
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">
+                  Copy the link above to share this analysis
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
+    </Layout>
   );
 };
 
