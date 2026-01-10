@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import SearchBar from "./components/SearchBar";
 import ProfileCard from "./components/ProfileCard";
 import ProfileAIAnalysis from "./components/ProfileAIAnalysis";
+import ShareModal from "./components/ShareModal";
 import { StatsGrid } from "./components/StatsGrid";
 import { Card, CardContent } from "./components/Card";
 import { exportToPDF } from "./utils/exportToPdf";
@@ -317,46 +318,12 @@ const HomePage = () => {
       )}
 
       {/* Share Modal */}
-      {sharing && (
-        <>
-          <div 
-            className="fixed inset-0 bg-black/50 z-40"
-            onClick={() => setSharing(false)}
-          />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md z-50">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Share Analysis
-                  </h3>
-                  <button
-                    onClick={() => setSharing(false)}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 
-                             p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    ✕
-                  </button>
-                </div>
-                
-                <input
-                  type="text"
-                  readOnly
-                  value={typeof window !== "undefined" ? window.location.href : ""}
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 
-                           dark:border-gray-700 rounded-lg text-gray-900 dark:text-white 
-                           focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  onFocus={(e) => e.target.select()}
-                />
-                
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">
-                  Copy the link above to share this analysis
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </>
-      )}
+      <ShareModal
+        isOpen={sharing}
+        onClose={() => setSharing(false)}
+        profileUrl={typeof window !== "undefined" ? window.location.href : ""}
+        username={data?.profile?.username || ""}
+      />
     </Layout>
   );
 };
