@@ -37,19 +37,19 @@ GitProfile AI analyzes GitHub profiles and repositories to extract technology st
 
 ## Tech Stack
 
-**Frontend**
+#### Frontend
 - React
 - Next.js (App Router)
 - Tailwind CSS
 
-**Backend**
+#### Backend
 - Node.js
 - Next.js API Routes
 
-**APIs**
+#### APIs
 - GitHub REST API
 
-**Deployment**
+#### Deployment
 - Vercel
 
 ---
@@ -130,6 +130,6 @@ MIT License. See `LICENSE` for details.
 
 ## Contact
 
-**Shreyash Patel**
+#### Shreyash Patel
 - GitHub: [@shreyashpatel5506](https://github.com/shreyashpatel5506)
 - Discord: [Community Server](https://discord.gg/YOUR_INVITE_CODE)
