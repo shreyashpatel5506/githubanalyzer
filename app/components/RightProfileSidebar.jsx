@@ -7,6 +7,9 @@ export default function RightProfileSidebar() {
   const [profile, setProfile] = useState(null);
   const [open, setOpen] = useState(false);
 
+  // ✅ NEW: state for copy success
+  const [copied, setCopied] = useState(false);
+
   /* 🔁 Load profile from localStorage */
   useEffect(() => {
     const stored = localStorage.getItem("githubData");
@@ -27,31 +30,43 @@ export default function RightProfileSidebar() {
   const shareUrl =
     typeof window !== "undefined" ? window.location.href : "";
 
+  // ✅ NEW: copy handler
+  const handleCopyProfileLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to copy profile link", error);
+    }
+  };
+
   return (
     <>
-      {/* 📱 MOBILE SHARE BUTTON */}
-  {/* 📱 MOBILE SHARE BUTTON ONLY (HIDE WHEN OPEN) */}
-{!open && (
-  <button
-    onClick={() => setOpen(true)}
-    className="
-      md:hidden
-      fixed top-5 right-5
-      z-40
-      bg-indigo-600
-      text-white
-      p-3
-      rounded-xl
-      shadow-lg
-      hover:bg-indigo-500
-      transition
-    "
-    aria-label="Open share sidebar"
-  >
-    <Share2 size={20} strokeWidth={2.5} />
-  </button>
-)}
-
+      {/* 📱 MOBILE SHARE BUTTON ONLY (HIDE WHEN OPEN) */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          className="
+            md:hidden
+            fixed top-5 right-5
+            z-40
+            bg-indigo-600
+            text-white
+            p-3
+            rounded-xl
+            shadow-lg
+            hover:bg-indigo-500
+            transition
+          "
+          aria-label="Open share sidebar"
+        >
+          <Share2 size={20} strokeWidth={2.5} />
+        </button>
+      )}
 
       {open && (
         <div
@@ -76,24 +91,24 @@ export default function RightProfileSidebar() {
       >
         {/* 📱 CLOSE BUTTON */}
         <button
-  onClick={() => setOpen(false)}
-  aria-label="Close sidebar"
-  className="
-    md:hidden
-    absolute top-4 right-4
-    z-50
-    bg-slate-800
-    hover:bg-slate-700
-    text-white
-    p-3
-    rounded-full
-    shadow-xl
-    active:scale-95
-    transition
-  "
->
-  <X size={26} strokeWidth={3} />
-</button>
+          onClick={() => setOpen(false)}
+          aria-label="Close sidebar"
+          className="
+            md:hidden
+            absolute top-4 right-4
+            z-50
+            bg-slate-800
+            hover:bg-slate-700
+            text-white
+            p-3
+            rounded-full
+            shadow-xl
+            active:scale-95
+            transition
+          "
+        >
+          <X size={26} strokeWidth={3} />
+        </button>
 
         {/* CONTENT */}
         <div className="flex flex-col items-center text-center px-6 pt-16">
@@ -111,11 +126,11 @@ export default function RightProfileSidebar() {
 
           {/* 🔗 COPY LINK */}
           <button
-            onClick={() => navigator.clipboard.writeText(shareUrl)}
+            onClick={handleCopyProfileLink}
             className="w-full mb-4 bg-indigo-600 hover:bg-indigo-500
                        text-white font-bold py-3 rounded-xl transition"
           >
-            🔗 Copy Profile Link
+            🔗 {copied ? "Copied" : "Copy Profile Link"}
           </button>
 
           {/* 🌐 SOCIAL LINKS */}
