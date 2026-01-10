@@ -171,7 +171,7 @@ export default function SearchBar({ onSearch, loading = false }) {
         {/* Popular Examples */}
         <div className="flex items-center justify-center gap-4 mt-4">
           <span className="text-xs text-gray-500 dark:text-gray-500">Try:</span>
-          {['torvalds', 'gaearon', 'sindresorhus'].map((example, index) => (
+          {['shreyashpatel5506', 'gaearon', 'sindresorhus'].map((example, index) => (
             <button
               key={example}
               onClick={() => {
