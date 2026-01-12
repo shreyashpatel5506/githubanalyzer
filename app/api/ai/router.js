@@ -1,22 +1,32 @@
+import { callOpenAI } from "./provider/openai";
+import { callGemini } from "./provider/gemini";
+
 export async function runAI(prompt) {
-  // 1. Try OpenAI
-  if (process.env.OPENAI_KEYS) {
-    const openaiKeys = process.env.OPENAI_KEYS.split(",");
-    for (const key of openaiKeys) {
-      try {
-        return await callOpenAI(prompt, key.trim()); // trim() handles accidental spaces in .env
-      } catch (err) {}
-    }
+  const openaiKeys = process.env.OPENAI_KEYS?.split(",") || [];
+  let lastError = null;
 
-    // 2. Fallback to Gemini
+  // 🔁 OpenAI key rotation ONLY
+  for (const key of openaiKeys) {
     try {
-      console.log("Attempting Gemini fallback...");
-      return await callGemini(prompt);
+      return await callOpenAI(prompt, key.trim());
     } catch (err) {
-      console.error("Gemini fallback also failed:", err.message);
-
-      // Final Error: Tell the user exactly why it failed
-      throw new Error(`Service Unavailable: ${err.message}`);
+      lastError = err;
+      console.error("OpenAI key failed:", err.message);
     }
   }
+
+  // 🚫 Gemini is NOT default fallback
+  if (process.env.ENABLE_GEMINI === "true") {
+    try {
+      console.warn("All OpenAI keys exhausted. Trying Gemini...");
+      return await callGemini(prompt);
+    } catch (err) {
+      throw new Error(`All providers failed. Gemini error: ${err.message}`);
+    }
+  }
+
+  // ❌ Final hard failure
+  throw new Error(
+    `All OpenAI keys failed. Gemini disabled. Last error: ${lastError?.message}`
+  );
 }
