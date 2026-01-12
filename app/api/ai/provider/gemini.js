@@ -7,9 +7,8 @@ export async function callGemini(prompt) {
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-  // ✅ ONLY WORKING FREE MODEL
   const model = genAI.getGenerativeModel({
-    model: "models/gemini-2.5-pro",
+    model: "models/gemini-2.5-flash",
   });
 
   const result = await model.generateContent(prompt);
