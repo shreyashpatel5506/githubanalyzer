@@ -1,16 +1,10 @@
-import OpenAI from "openai";
 import { NextResponse } from "next/server";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { runAI } from "../ai/router";
 
 function getSection(text, title) {
   const regex = new RegExp(`## ${title}[\\s\\S]*?(?=##|$)`, "i");
   const match = text.match(regex);
-  return match
-    ? match[0].replace(`## ${title}`, "").trim()
-    : "";
+  return match ? match[0].replace(`## ${title}`, "").trim() : "";
 }
 
 export async function POST(req) {
@@ -58,17 +52,10 @@ Code Quality:
 ## Career Impact Advice
 `;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.4,
-    });
-
-    const analysis = completion.choices[0].message.content;
+    const analysis = await runAI(prompt);
 
     // 🔢 Extract numbers safely
-    const nums =
-      analysis.match(/\b(10|[0-9])\b/g)?.map(Number) || [];
+    const nums = analysis.match(/\b(10|[0-9])\b/g)?.map(Number) || [];
 
     const scores = {
       maintainability: nums[0] ?? 0,

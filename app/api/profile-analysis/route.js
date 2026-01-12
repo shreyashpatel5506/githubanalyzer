@@ -1,14 +1,10 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { runAI } from "../ai/router";
 
 export async function POST(req) {
   try {
-    const { profile, repos, pullRequests, recentActivity } =
-      await req.json();
+    const { profile, repos, pullRequests, recentActivity } = await req.json();
 
     if (!profile || !repos) {
       return NextResponse.json(
@@ -87,33 +83,18 @@ ${repos
 `;
 
     /* ------------------ OPENAI CALL ------------------ */
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-    });
-
-    const analysisText =
-      completion.choices[0].message.content;
+    const analysisText = await runAI(prompt);
 
     /* ------------------ HELPERS ------------------ */
 
     const extractSection = (title) => {
-      const regex = new RegExp(
-        `## ${title}[\\s\\S]*?(?=##|$)`,
-        "i"
-      );
+      const regex = new RegExp(`## ${title}[\\s\\S]*?(?=##|$)`, "i");
       const match = analysisText.match(regex);
-      return match
-        ? match[0].replace(`## ${title}`, "").trim()
-        : "";
+      return match ? match[0].replace(`## ${title}`, "").trim() : "";
     };
 
     function extractScores(text) {
-      const blockMatch = text.match(
-        /## Health Scores[\s\S]*?(?=##|$)/i
-      );
+      const blockMatch = text.match(/## Health Scores[\s\S]*?(?=##|$)/i);
 
       if (!blockMatch) {
         return {
@@ -129,9 +110,7 @@ ${repos
       const block = blockMatch[0];
 
       const get = (label) => {
-        const match = block.match(
-          new RegExp(`${label}:\\s*(10|[0-9])`, "i")
-        );
+        const match = block.match(new RegExp(`${label}:\\s*(10|[0-9])`, "i"));
         return match ? Number(match[1]) : 0;
       };
 
