@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import Layout from "../components/Layout";
 import { Card, CardContent } from "../components/Card";
 import { Search, Filter, Star, GitFork, ExternalLink, Calendar, Activity, AlertCircle } from "lucide-react";
+import RepoActionModal from "../components/RepoActionModal";
 
 const ProjectsPage = () => {
   const [data, setData] = useState(null);
   const [filteredRepos, setFilteredRepos] = useState([]);
+  const [selectedRepo, setSelectedRepo] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLang, setSelectedLang] = useState("All");
   const [sortBy, setSortBy] = useState("updated");
@@ -184,7 +186,8 @@ const ProjectsPage = () => {
                 key={repo.id} 
                 hover 
                 className="cursor-pointer group"
-                onClick={() => router.push(`/repo/${data.profile.username}/${repo.name}`)}
+                onClick={() => setSelectedRepo(repo)}
+
               >
                 <CardContent className="p-6">
                   {/* Header */}
@@ -288,7 +291,16 @@ const ProjectsPage = () => {
           </Card>
         )}
       </div>
+      {selectedRepo && (
+<RepoActionModal
+  open={!!selectedRepo}
+  onClose={() => setSelectedRepo(null)}
+  owner={data.profile.username}
+  repo={selectedRepo.name}
+/>
+)}
     </Layout>
+
   );
 };
 
