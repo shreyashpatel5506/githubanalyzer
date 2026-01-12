@@ -1,22 +1,56 @@
-import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { runAI } from "../ai/router";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+/* ---------------- HELPERS ---------------- */
 
-function getSection(text, title) {
+function extractSection(text, title) {
   const regex = new RegExp(`## ${title}[\\s\\S]*?(?=##|$)`, "i");
   const match = text.match(regex);
-  return match
-    ? match[0].replace(`## ${title}`, "").trim()
-    : "";
+  return match ? match[0].replace(`## ${title}`, "").trim() : "";
 }
+
+function extractScore(text, label) {
+  const regex = new RegExp(`${label}\\s*:?\\s*(\\d+(?:\\.\\d)?)\\/10`, "i");
+  const match = text.match(regex);
+  if (!match) return 7; // safe motivational default
+  return Math.min(9, Math.max(6, Number(match[1])));
+}
+
+function parseBulletSections(text) {
+  if (!text) return [];
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const m = line.match(/\*\*(.+?)\*\*:?\\s*(.*)/);
+      return m
+        ? { title: m[1], description: m[2] }
+        : { title: "Observation", description: line };
+    });
+}
+
+function parseFixPlan(text) {
+  if (!text) return [];
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const time = line.match(/Hour[s]?\\s*(.*?)(?:\\(|—|-))/i)?.[1] || "Phase";
+      return {
+        phase: time,
+        goal: line,
+        deliverables: [],
+      };
+    });
+}
+
+/* ---------------- API ---------------- */
 
 export async function POST(req) {
   try {
     const { repoDetails } = await req.json();
-
     if (!repoDetails) {
       return NextResponse.json(
         { error: "Repo details missing" },
@@ -25,70 +59,93 @@ export async function POST(req) {
     }
 
     const prompt = `
-You are a brutally honest Senior Open Source Maintainer and Career Mentor.
+You are a Principal Engineer, Open Source Maintainer, and Hiring Manager.
 
-Analyze this GitHub repository:
+Analyze this GitHub repository as if YOU are responsible for its success.
 
-Name: ${repoDetails.name}
-Description: ${repoDetails.description || "No description"}
-Tech Stack: ${repoDetails.language || "Unknown"}
-Stars: ${repoDetails.stars || 0}
-Forks: ${repoDetails.forks || 0}
+Repository:
+- Name: ${repoDetails.name}
+- Description: ${repoDetails.description || "No description"}
+- Tech Stack: ${repoDetails.language || "Unknown"}
+- Stars: ${repoDetails.stars || 0}
+- Forks: ${repoDetails.forks || 0}
 
-RULES:
-- No sugar coating
-- Simple English + Hinglish
-- Practical advice only
+CRITICAL RULES:
+- Speak with ownership ("If I were maintaining this repo...")
+- No AI fluff, no generic praise
+- Scores represent readiness & trajectory (6–9 range only)
+- Do NOT judge — guide like a mentor
+- Simple English + light Hinglish allowed
+- No JSON, ONLY markdown
 
-Return MARKDOWN in this EXACT structure:
+RETURN IN THIS EXACT FORMAT:
 
 ## Overall Verdict
 
-## Health Scores (0–10)
-Maintainability:
-Security:
-Documentation:
-Scalability:
-Code Quality:
+## Project Trajectory Scores
+Maintainability: X/10
+Security: X/10
+Documentation: X/10
+Scalability: X/10
+Code Quality: X/10
 
-## What Is MISSING
+## What Is Blocking This Repo From Being Production-Grade
+- **Title**: explanation
+- **Title**: explanation
 
-## 48-Hour Fix Plan
+## Strengths Worth Preserving
+- **Title**: explanation
+- **Title**: explanation
 
-## Career Impact Advice
+## High-Impact Improvements (No Feature Cuts)
+- **Title**: explanation
+- **Title**: explanation
+
+## 48-Hour Maintainer Fix Plan
+Hour 0–6 (Critical)
+Hour 6–12 (High)
+Hour 12–24 (Medium)
+Hour 24–48 (Polish)
+
+## Career Impact
 `;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.4,
-    });
+    const analysis = await runAI(prompt);
 
-    const analysis = completion.choices[0].message.content;
-
-    // 🔢 Extract numbers safely
-    const nums =
-      analysis.match(/\b(10|[0-9])\b/g)?.map(Number) || [];
-
+    /* -------- SCORES (LABEL BASED) -------- */
     const scores = {
-      maintainability: nums[0] ?? 0,
-      security: nums[1] ?? 0,
-      documentation: nums[2] ?? 0,
-      scalability: nums[3] ?? 0,
-      codeQuality: nums[4] ?? 0,
+      maintainability: extractScore(analysis, "Maintainability"),
+      security: extractScore(analysis, "Security"),
+      documentation: extractScore(analysis, "Documentation"),
+      scalability: extractScore(analysis, "Scalability"),
+      codeQuality: extractScore(analysis, "Code Quality"),
     };
 
-    const sections = {
-      verdict: getSection(analysis, "Overall Verdict"),
-      missing: getSection(analysis, "What Is MISSING"),
-      fixPlan: getSection(analysis, "48-Hour Fix Plan"),
-      career: getSection(analysis, "Career Impact Advice"),
-    };
+    /* -------- SECTIONS -------- */
+    const verdict = extractSection(analysis, "Overall Verdict");
+    const blockersRaw = extractSection(
+      analysis,
+      "What Is Blocking This Repo From Being Production-Grade"
+    );
+    const strengthsRaw = extractSection(analysis, "Strengths Worth Preserving");
+    const improvementsRaw = extractSection(
+      analysis,
+      "High-Impact Improvements (No Feature Cuts)"
+    );
+    const fixPlanRaw = extractSection(analysis, "48-Hour Maintainer Fix Plan");
+    const career = extractSection(analysis, "Career Impact");
 
     return NextResponse.json({
       scores,
-      sections,
-      rawAnalysis: analysis,
+      sections: {
+        executiveVerdict: verdict,
+        strengths: parseBulletSections(strengthsRaw),
+        criticalGaps: parseBulletSections(blockersRaw),
+        areasForImprovement: parseBulletSections(improvementsRaw),
+        fixPlan48h: parseFixPlan(fixPlanRaw),
+        careerImpact: career,
+      },
+      rawAnalysis: analysis, // debug / future-proofing
     });
   } catch (error) {
     console.error("AI ERROR:", error);
