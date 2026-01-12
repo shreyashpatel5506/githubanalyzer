@@ -9,7 +9,7 @@ export async function callGemini(prompt) {
 
   // ✅ ONLY WORKING FREE MODEL
   const model = genAI.getGenerativeModel({
-    model: "models/gemini-3-pro-preview",
+    model: "models/gemini-2.5-pro",
   });
 
   const result = await model.generateContent(prompt);
