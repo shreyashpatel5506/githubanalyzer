@@ -11,9 +11,12 @@ import { Card, CardContent } from "./components/Card";
 import { exportToPDF } from "./utils/exportToPdf";
 import { useRouter } from "next/navigation";
 import { Sparkles, Brain, Share2, RotateCcw } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 const HomePage = () => {
   const router = useRouter();
+  const { status } = useSession();
+
   const [data, setData] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -21,42 +24,48 @@ const HomePage = () => {
   const [error, setError] = useState(null);
   const [sharing, setSharing] = useState(false);
 
-  /* Load cached data */
-  useEffect(() => {
-    const stored = localStorage.getItem("githubData");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setData(parsed);
-      if (parsed.analysis) setAnalysis(parsed.analysis);
+  /* ===============================
+     🔥 CORE FETCH (AUTH AWARE)
+  =============================== */
+  const fetchGithubData = async (username, includePrivate = false) => {
+    setLoading(true);
+    setError(null);
+    setAnalysis(null);
+
+    try {
+      const res = await fetch("/api/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          accessToken: includePrivate ? "session" : null,
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+
+      const payload = {
+        ...result,
+        fetchedWithAuth: includePrivate,
+      };
+
+      setData(payload);
+      localStorage.setItem("githubData", JSON.stringify(payload));
+      window.dispatchEvent(new Event("github-profile-updated"));
+
+      fetchProfileAnalysis(payload);
+    } catch {
+      setError("User not found or GitHub API error");
+      setData(null);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  /* Check URL for username param */
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const userParam = params.get("user");
-    if (userParam) {
-      fetchGithubData(userParam);
-    } else {
-      let storedUser = localStorage.getItem("githubData");
-      storedUser = JSON.parse(storedUser);
-      if (localStorage.getItem("githubData") == undefined || !storedUser) {
-        return;
-      } else {
-        router.push(`?user=${storedUser.profile.username}`, { scroll: false });
-      }
-    }
-  }, []);
-
-  const handleSearch = useCallback(
-    (username) => {
-      fetchGithubData(username);
-      router.push(`?user=${username}`, { scroll: false });
-    },
-    [router]
-  );
-
-  /* AI Profile Analysis */
+  /* ===============================
+     🤖 AI ANALYSIS
+  =============================== */
   const fetchProfileAnalysis = async (githubData) => {
     setAiLoading(true);
     try {
@@ -72,51 +81,64 @@ const HomePage = () => {
       });
 
       const result = await res.json();
-      setAnalysis(result.analysis);
-
       const updated = { ...githubData, analysis: result.analysis };
+
+      setAnalysis(result.analysis);
       setData(updated);
       localStorage.setItem("githubData", JSON.stringify(updated));
-      window.dispatchEvent(new Event("github-profile-updated"));
-    } catch (err) {
-      console.error(err);
-      setAnalysis({ error: "AI analysis failed. Try again later." });
+    } catch {
+      setAnalysis({ error: "AI analysis failed" });
     } finally {
       setAiLoading(false);
     }
   };
 
-  /* Fetch GitHub Profile */
-  const fetchGithubData = async (username) => {
-    setLoading(true);
-    setError(null);
-    setAnalysis(null);
+  /* ===============================
+     📦 LOAD FROM CACHE
+  =============================== */
+  useEffect(() => {
+    const cached = localStorage.getItem("githubData");
+    if (!cached) return;
 
-    try {
-      const res = await fetch("/api/github", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username }),
-      });
+    const parsed = JSON.parse(cached);
+    setData(parsed);
+    if (parsed.analysis) setAnalysis(parsed.analysis);
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error);
+    router.push(`?user=${parsed.profile.username}`, { scroll: false });
+  }, []);
 
-      setData(result);
-      localStorage.setItem("githubData", JSON.stringify(result));
-      window.dispatchEvent(new Event("github-profile-updated"));
-      fetchProfileAnalysis(result);
-    } catch (err) {
-      setError("User not found or GitHub API error");
-      setData(null);
-    } finally {
-      setLoading(false);
+  /* ===============================
+     🔗 URL PARAM
+  =============================== */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const user = params.get("user");
+    if (user) {
+      fetchGithubData(user, status === "authenticated");
     }
-  };
+  }, []);
 
-  const handleShare = () => {
-    setSharing(true);
-  };
+  /* ===============================
+     🔥 AUTO UPGRADE AFTER LOGIN
+  =============================== */
+  useEffect(() => {
+    if (!data) return;
+    if (status !== "authenticated") return;
+    if (data.fetchedWithAuth) return;
+
+    fetchGithubData(data.profile.username, true);
+  }, [status]);
+
+  /* ===============================
+     🔎 SEARCH
+  =============================== */
+  const handleSearch = useCallback(
+    (username) => {
+      router.push(`?user=${username}`, { scroll: false });
+      fetchGithubData(username, status === "authenticated");
+    },
+    [status]
+  );
 
   const handleReset = () => {
     localStorage.removeItem("githubData");
@@ -125,19 +147,16 @@ const HomePage = () => {
     router.push("/", { scroll: false });
   };
 
-  const handleExportPDF = () => {
-    exportToPDF("ai-analysis");
-  };
+  const handleExportPDF = () => exportToPDF("ai-analysis");
 
-  /* Loading State */
+  /* ===============================
+     ⏳ LOADING
+  =============================== */
   if (loading) {
     return (
       <Layout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-          <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400 font-medium">
-            Analyzing GitHub profile...
-          </p>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
         </div>
       </Layout>
     );
@@ -145,114 +164,55 @@ const HomePage = () => {
 
   return (
     <Layout>
-      {/* Hero Section */}
+      {/* ================= HERO ================= */}
       {!data && (
-        <div className="relative overflow-hidden">
-          {/* Background Pattern */}
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-blue-50 dark:from-gray-900 dark:to-gray-800"></div>
-          <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-          
-          <div className="relative max-w-4xl mx-auto px-4 py-20 text-center">
-            {/* Hero Content */}
-            <div className="mb-12">
-              <div className="flex items-center justify-center mb-6">
-                <div className="p-3 bg-emerald-600 rounded-2xl shadow-lg">
-                  <Sparkles className="w-8 h-8 text-white" />
-                </div>
-              </div>
-              
-              <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6 leading-tight">
-                <span className="gradient-text">GitProfile</span> AI
-              </h1>
-              
-              <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-4 max-w-3xl mx-auto leading-relaxed">
-                Get AI-powered insights into GitHub profiles and coding expertise
-              </p>
-              
-              <p className="text-lg text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
-                Analyze any GitHub profile with recruiter-grade insights, skill assessments, and improvement recommendations
-              </p>
+        <div className="max-w-4xl mx-auto px-4 py-20 text-center">
+          <div className="flex justify-center mb-6">
+            <div className="p-3 bg-emerald-600 rounded-2xl">
+              <Sparkles className="w-8 h-8 text-white" />
             </div>
-
-            {/* Search */}
-            <div className="mb-12">
-              <SearchBar onSearch={handleSearch} loading={loading} />
-            </div>
-
-            {/* Features */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-              <div className="text-center p-6">
-                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center mx-auto mb-4">
-                  <Brain className="w-6 h-6 text-blue-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">AI Analysis</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Advanced AI evaluates coding skills, project quality, and hiring readiness
-                </p>
-              </div>
-              
-              <div className="text-center p-6">
-                <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/20 rounded-lg flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-6 h-6 text-emerald-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Instant Insights</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Get comprehensive analysis in seconds with actionable recommendations
-                </p>
-              </div>
-              
-              <div className="text-center p-6">
-                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center mx-auto mb-4">
-                  <Share2 className="w-6 h-6 text-purple-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Share Results</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Export and share professional analysis reports with recruiters
-                </p>
-              </div>
-            </div>
-
-            {/* Error State */}
-            {error && (
-              <Card className="max-w-md mx-auto mt-8 border-red-200 dark:border-red-800">
-                <CardContent className="text-center py-6">
-                  <p className="text-red-600 dark:text-red-400 font-medium">{error}</p>
-                </CardContent>
-              </Card>
-            )}
           </div>
+
+          <h1 className="text-5xl font-bold mb-4 text-white">
+            <span className="gradient-text">GitProfile</span> AI
+          </h1>
+
+          <p className="text-gray-400 mb-10">
+            AI-powered GitHub profile analysis with recruiter-grade insights
+          </p>
+
+          <SearchBar onSearch={handleSearch} loading={loading} />
+
+          {error && <p className="text-red-500 mt-6">{error}</p>}
         </div>
       )}
 
-      {/* Results Section */}
+      {/* ================= RESULTS ================= */}
       {data && (
-        <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
-          {/* Header Actions */}
+        <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+          {/* 🔥 HEADER (MATCHES SCREENSHOT) */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-2xl font-bold text-white">
                 Profile Analysis
               </h1>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-gray-400">
                 Comprehensive GitHub profile evaluation
               </p>
             </div>
-            
+
             <div className="flex gap-3">
               <button
-                onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 
-                         text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 
-                         dark:hover:bg-gray-700 transition-colors"
+                onClick={() => setSharing(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700"
               >
                 <Share2 className="w-4 h-4" />
                 Share
               </button>
-              
+
               <button
                 onClick={handleReset}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white 
-                         rounded-lg hover:bg-emerald-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
               >
                 <RotateCcw className="w-4 h-4" />
                 New Analysis
@@ -260,56 +220,33 @@ const HomePage = () => {
             </div>
           </div>
 
-          {/* Profile Card */}
-          <ProfileCard profile={data.profile} onShare={handleShare} />
+          {/* PROFILE CARD */}
+          <ProfileCard profile={data.profile} />
 
-          {/* Stats Grid */}
-          <StatsGrid 
+          {/* STATS */}
+          <StatsGrid
             stats={[
-              {
-                title: "Open PRs",
-                value: data.pullRequests.open,
-                icon: "pullRequests",
-                color: "blue"
-              },
-              {
-                title: "Merged PRs", 
-                value: data.pullRequests.merged,
-                icon: "pullRequests",
-                color: "green"
-              },
-              {
-                title: "Recent Commits",
-                value: data.recentActivity.commits,
-                icon: "commits", 
-                color: "purple"
-              },
+              { title: "Open PRs", value: data.pullRequests.open },
+              { title: "Merged PRs", value: data.pullRequests.merged },
+              { title: "Commits", value: data.recentActivity.commits },
               {
                 title: "Active Repos",
                 value: data.recentActivity.activeRepositories,
-                icon: "trending",
-                color: "orange"
-              }
+              },
             ]}
           />
 
-          {/* AI Analysis */}
+          {/* AI ANALYSIS */}
           {aiLoading ? (
             <Card>
               <CardContent className="text-center py-12">
-                <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  AI Analysis in Progress
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Evaluating profile consistency, project quality, and hiring readiness...
-                </p>
+                AI Analysis in progress…
               </CardContent>
             </Card>
           ) : (
             analysis && (
-              <ProfileAIAnalysis 
-                analysis={analysis} 
+              <ProfileAIAnalysis
+                analysis={analysis}
                 onExport={handleExportPDF}
               />
             )
@@ -317,7 +254,7 @@ const HomePage = () => {
         </div>
       )}
 
-      {/* Share Modal */}
+      {/* SHARE MODAL */}
       <ShareModal
         isOpen={sharing}
         onClose={() => setSharing(false)}

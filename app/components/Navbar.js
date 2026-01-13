@@ -4,6 +4,9 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, User, CodeXml, Folder, Mail, Menu, X, Star } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { CircleUser } from "lucide-react";
+import ProfileModal from "./ProfileModal";
 
 const navItems = [
   { name: "Home", icon: <Home size={18} />, path: "/" },
@@ -17,6 +20,9 @@ const GITHUB_REPO_URL = "https://github.com/shreyashpatel5506/gitprofileAi";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const [openProfile, setOpenProfile] = useState(false);
+
   const [burgerMenuOpen, setBurgerMenuOpen] = useState(false);
 
   return (
@@ -78,6 +84,24 @@ export default function Navbar() {
           </a>
         </div>
       </aside>
+      {session && (
+        <button
+          onClick={() => setOpenProfile(true)}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition"
+        >
+          <img
+            src={session.user.image}
+            className="w-8 h-8 rounded-full"
+            alt="profile"
+          />
+
+          <span className="font-medium text-slate-700">
+            {session.user.name || "GitHub User"}
+          </span>
+        </button>
+      )}
+
+      <ProfileModal open={openProfile} onClose={() => setOpenProfile(false)} />
 
       {/* Mobile Menu Button */}
       <button

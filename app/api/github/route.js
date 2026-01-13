@@ -27,15 +27,15 @@ function validateUsername(username) {
   return { valid: true, username: sanitized };
 }
 
-function getGitHubHeaders() {
+function getGitHubHeaders(token) {
   const headers = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": GITHUB_API_VERSION,
     "User-Agent": "gitprofile-ai",
   };
 
-  if (process.env.GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   return headers;
@@ -59,7 +59,7 @@ async function handleGitHubResponse(res, context) {
   return { error: false, data };
 }
 
-/* ================== GRAPHQL (EXACT COMMITS) ================== */
+/* ================== GRAPHQL ================== */
 
 async function fetchExactContributions(username, headers) {
   const fromDate = new Date(
@@ -85,10 +85,7 @@ async function fetchExactContributions(username, headers) {
       ...headers,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      query,
-      variables: { login: username },
-    }),
+    body: JSON.stringify({ query, variables: { login: username } }),
   });
 
   const json = await res.json();
@@ -102,20 +99,22 @@ async function fetchExactContributions(username, headers) {
 
 /* ================== FETCH REPOS ================== */
 
-async function fetchAllRepos(username, headers) {
+async function fetchAllRepos({ username, headers, isAuthenticated }) {
   let repos = [];
   let page = 1;
 
+  const baseUrl = isAuthenticated
+    ? `${GITHUB_API}/user/repos?visibility=all`
+    : `${GITHUB_API}/users/${username}/repos?visibility=public`;
+
   while (repos.length < MAX_REPOS_TO_FETCH) {
     const res = await fetch(
-      `${GITHUB_API}/users/${username}/repos?per_page=${REPOS_PER_PAGE}&page=${page}&sort=updated`,
+      `${baseUrl}&per_page=${REPOS_PER_PAGE}&page=${page}&sort=updated`,
       { headers }
     );
 
     const result = await handleGitHubResponse(res, "Failed to fetch repos");
-    if (result.error) break;
-
-    if (result.data.length === 0) break;
+    if (result.error || result.data.length === 0) break;
 
     repos.push(...result.data);
     page++;
@@ -123,18 +122,17 @@ async function fetchAllRepos(username, headers) {
 
   return repos.slice(0, MAX_REPOS_TO_FETCH);
 }
+
+/* ================== NORMALIZERS ================== */
+
 const ACTIVE_DAYS_THRESHOLD = 90;
 
 function isRepoActive(repo) {
   if (repo.archived || repo.disabled) return false;
-
   const lastPush = new Date(repo.pushed_at).getTime();
   const cutoff = Date.now() - ACTIVE_DAYS_THRESHOLD * 24 * 60 * 60 * 1000;
-
   return lastPush >= cutoff;
 }
-
-/* ================== NORMALIZERS ================== */
 
 function normalizeProfile(p) {
   return {
@@ -150,6 +148,7 @@ function normalizeProfile(p) {
     createdAt: p.created_at,
   };
 }
+
 function normalizeRepos(repos) {
   return repos
     .filter((r) => !r.fork)
@@ -169,12 +168,9 @@ function normalizeRepos(repos) {
       archived: r.archived,
       disabled: r.disabled,
       size: r.size,
-      hasWiki: r.has_wiki,
-      hasPages: r.has_pages,
-      hasProjects: r.has_projects,
       pushedAt: r.pushed_at,
       updatedAt: r.updated_at,
-      isActive: isRepoActive(r), // your activity flag
+      isActive: isRepoActive(r),
     }));
 }
 
@@ -182,48 +178,48 @@ function normalizeRepos(repos) {
 
 export async function POST(req) {
   try {
-    const body = await req.json();
-    const validation = validateUsername(body.username);
+    const { username, accessToken } = await req.json();
 
+    const validation = validateUsername(username);
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    if (!process.env.GITHUB_TOKEN) {
-      return NextResponse.json(
-        { error: "GitHub token missing" },
-        { status: 500 }
-      );
-    }
+    const isAuthenticated = Boolean(accessToken);
 
-    const username = validation.username;
-    const headers = getGitHubHeaders();
+    const headers = getGitHubHeaders(
+      isAuthenticated ? accessToken : process.env.GITHUB_TOKEN
+    );
 
-    /* -------- PARALLEL FETCH -------- */
+    const cleanUsername = validation.username;
+
     const [profileRes, repos, totalPRRes, mergedPRRes, openPRRes, graphStats] =
       await Promise.all([
-        fetch(`${GITHUB_API}/users/${username}`, { headers }),
-        fetchAllRepos(username, headers),
+        fetch(`${GITHUB_API}/users/${cleanUsername}`, { headers }),
+        fetchAllRepos({
+          username: cleanUsername,
+          headers,
+          isAuthenticated,
+        }),
         fetch(
-          `${GITHUB_API}/search/issues?q=author:${username}+type:pr&per_page=1`,
+          `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr&per_page=1`,
           { headers }
         ),
         fetch(
-          `${GITHUB_API}/search/issues?q=author:${username}+type:pr+is:merged&per_page=1`,
+          `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr+is:merged&per_page=1`,
           { headers }
         ),
         fetch(
-          `${GITHUB_API}/search/issues?q=author:${username}+type:pr+is:open&per_page=1`,
+          `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr+is:open&per_page=1`,
           { headers }
         ),
-        fetchExactContributions(username, headers),
+        fetchExactContributions(cleanUsername, headers),
       ]);
 
     const profileResult = await handleGitHubResponse(
       profileRes,
       "Profile fetch failed"
     );
-
     if (profileResult.error) {
       return NextResponse.json(
         { error: profileResult.message },
@@ -235,7 +231,6 @@ export async function POST(req) {
     const mergedPR = (await mergedPRRes.json()).total_count || 0;
     const openPR = (await openPRRes.json()).total_count || 0;
 
-    /* -------- FINAL RESPONSE -------- */
     return NextResponse.json({
       profile: normalizeProfile(profileResult.data),
       repos: normalizeRepos(repos),
@@ -255,6 +250,7 @@ export async function POST(req) {
             new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
         ).length,
       },
+      authMode: isAuthenticated ? "authenticated" : "guest",
     });
   } catch (err) {
     console.error(err);

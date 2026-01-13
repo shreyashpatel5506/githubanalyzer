@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { runAI } from "../ai/router";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import connectMongo from "@/app/config/db";
+import User from "@/app/models/user";
+import Usage from "@/app/models/Usage";
+
+const FREE_DAILY_SCAN_LIMIT = 5;
 
 /* ---------------- HELPERS ---------------- */
 
@@ -50,6 +57,51 @@ function parseFixPlan(text) {
 
 export async function POST(req) {
   try {
+    await connectMongo();
+
+    // 1️⃣ Get session
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.githubId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // 2️⃣ Get user
+    const user = await User.findOne({ githubId: session.user.githubId });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // 3️⃣ Pro users = no limits
+    if (user.plan !== "pro") {
+      const today = new Date().toISOString().split("T")[0];
+
+      let usage = await Usage.findOne({
+        userId: user._id,
+        date: today,
+      });
+
+      if (!usage) {
+        usage = await Usage.create({
+          userId: user._id,
+          date: today,
+          repoScansUsed: 0,
+        });
+      }
+
+      if (usage.repoScansUsed >= FREE_DAILY_SCAN_LIMIT) {
+        return NextResponse.json(
+          {
+            error: "Daily limit reached",
+            message: "Free users can scan only 5 repositories per day.",
+            limit: FREE_DAILY_SCAN_LIMIT,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const { repoDetails } = await req.json();
     if (!repoDetails) {
       return NextResponse.json(
@@ -111,6 +163,16 @@ Hour 24–48 (Polish)
 `;
 
     const analysis = await runAI(prompt);
+    // ✅ Increment usage AFTER successful scan
+    if (user.plan !== "pro") {
+      const today = new Date().toISOString().split("T")[0];
+
+      await Usage.findOneAndUpdate(
+        { userId: user._id, date: today },
+        { $inc: { repoScansUsed: 1 } },
+        { upsert: true }
+      );
+    }
 
     /* -------- SCORES (LABEL BASED) -------- */
     const scores = {

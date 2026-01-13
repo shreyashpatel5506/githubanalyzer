@@ -1,8 +1,11 @@
 "use client";
 
+import { useSession, signIn } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Layout from "@/app/components/Layout";
+import AuthRequiredModal from "@/app/components/AuthRequiredModal";
+
 import { Radar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -13,8 +16,17 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { ArrowLeft, TrendingUp, Loader2 } from "lucide-react";
-import { Star, GitFork, Code, Calendar, ExternalLink } from "lucide-react";
+
+import {
+  ArrowLeft,
+  TrendingUp,
+  Loader2,
+  Star,
+  GitFork,
+  Code,
+  Calendar,
+  ExternalLink,
+} from "lucide-react";
 
 import {
   Card,
@@ -35,12 +47,24 @@ ChartJS.register(
 export default function RepoDetailPage() {
   const { repo } = useParams();
   const router = useRouter();
+  const { data: session, status } = useSession();
 
   const [repoData, setRepoData] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
+    if (status === "loading") return;
+
+    // ❌ Not logged in → open modal, stop execution
+    if (!session) {
+      setShowLoginModal(true);
+      setLoading(false);
+      return;
+    }
+
+    // ✅ Logged in → proceed as before
     const init = async () => {
       try {
         const saved = localStorage.getItem("githubData");
@@ -77,8 +101,9 @@ export default function RepoDetailPage() {
     };
 
     init();
-  }, [repo, router]);
+  }, [repo, router, session, status]);
 
+  /* ---------- LOADING ---------- */
   if (loading) {
     return (
       <Layout>
@@ -89,7 +114,7 @@ export default function RepoDetailPage() {
     );
   }
 
-  /* ---------- HARD SAFETY ---------- */
+  /* ---------- SAFETY ---------- */
   const scores =
     analysis?.scores && typeof analysis.scores === "object"
       ? analysis.scores
@@ -100,7 +125,6 @@ export default function RepoDetailPage() {
       ? analysis.sections
       : {};
 
-  /* ---------- RADAR ---------- */
   const radarData =
     Object.keys(scores).length > 0
       ? {
@@ -120,6 +144,12 @@ export default function RepoDetailPage() {
 
   return (
     <Layout>
+      {/* 🔐 LOGIN MODAL */}
+      <AuthRequiredModal
+        open={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
+
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         <button
           onClick={() => router.back()}
@@ -137,59 +167,51 @@ export default function RepoDetailPage() {
             </p>
           </CardContent>
         </Card>
-{/* GitHub Meta Info */}
-<Card>
-  <CardContent className="p-6">
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-
-      {/* Stars */}
-      <div className="flex items-center gap-2 text-gray-700">
-        <Star className="w-4 h-4 text-yellow-500" />
-        <span className="font-medium">{repoData?.stars ?? 0}</span>
-        <span className="text-sm text-gray-500">Stars</span>
-      </div>
-
-      {/* Forks */}
-      <div className="flex items-center gap-2 text-gray-700">
-        <GitFork className="w-4 h-4 text-blue-500" />
-        <span className="font-medium">{repoData?.forks ?? 0}</span>
-        <span className="text-sm text-gray-500">Forks</span>
-      </div>
-
-      {/* Language */}
-      {repoData?.language && (
-        <div className="flex items-center gap-2 text-gray-700">
-          <Code className="w-4 h-4 text-emerald-600" />
-          <span className="font-medium">{repoData.language}</span>
-        </div>
-      )}
-
-      {/* Updated At */}
-      {repoData?.updatedAt && (
-        <div className="flex items-center gap-2 text-gray-700">
-          <Calendar className="w-4 h-4 text-gray-500" />
-          <span className="text-sm">
-            Updated{" "}
-            {new Date(repoData.updatedAt).toLocaleDateString()}
-          </span>
-        </div>
-      )}
-
-      {/* GitHub Link */}
-      {repoData?.url && (
-        <a
-          href={repoData.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 text-emerald-600 font-medium hover:underline"
-        >
-          <ExternalLink className="w-4 h-4" />
-          GitHub
-        </a>
-      )}
-    </div>
-  </CardContent>
-</Card>
+    {sections?.executiveVerdict && (
+  <Card>
+    <CardHeader>
+      <CardTitle>Executive Verdict</CardTitle>
+    </CardHeader>
+    <CardContent className="text-gray-700 leading-relaxed">
+      {sections.executiveVerdict}
+    </CardContent>
+  </Card>
+)}
+        {/* GitHub Meta */}
+        <Card>
+          <CardContent className="p-6 grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="flex items-center gap-2">
+              <Star className="w-4 h-4 text-yellow-500" />
+              {repoData?.stars ?? 0}
+            </div>
+            <div className="flex items-center gap-2">
+              <GitFork className="w-4 h-4 text-blue-500" />
+              {repoData?.forks ?? 0}
+            </div>
+            {repoData?.language && (
+              <div className="flex items-center gap-2">
+                <Code className="w-4 h-4 text-emerald-600" />
+                {repoData.language}
+              </div>
+            )}
+            {repoData?.updatedAt && (
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                {new Date(repoData.updatedAt).toLocaleDateString()}
+              </div>
+            )}
+            {repoData?.url && (
+              <a
+                href={repoData.url}
+                target="_blank"
+                className="flex items-center gap-2 text-emerald-600"
+              >
+                <ExternalLink className="w-4 h-4" />
+                GitHub
+              </a>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Scores */}
         {Object.keys(scores).length > 0 && (
@@ -198,7 +220,7 @@ export default function RepoDetailPage() {
               <Card key={k}>
                 <CardContent className="p-6 text-center">
                   <div className="text-2xl font-bold">{v}/10</div>
-                  <div className="text-sm text-gray-500 capitalize">
+                  <div className="text-sm text-gray-500">
                     {k.replace(/([A-Z])/g, " $1")}
                   </div>
                 </CardContent>
@@ -220,93 +242,74 @@ export default function RepoDetailPage() {
             </CardContent>
           </Card>
         )}
-
-        {/* Executive Verdict */}
-        {sections.executiveVerdict && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Executive Verdict</CardTitle>
-            </CardHeader>
-            <CardContent className="whitespace-pre-line">
-              {sections.executiveVerdict}
-            </CardContent>
-          </Card>
-        )}
-
         {/* Strengths */}
-        {Array.isArray(sections.strengths) &&
-          sections.strengths.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Strengths to Keep</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {sections.strengths.map((s, i) => (
-                  <div key={i}>
-                    <h4 className="font-semibold">{s.title}</h4>
-                    <p className="text-gray-600">{s.description}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+{sections?.strengths?.length > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle>Strengths</CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-3">
+      {sections.strengths.map((item, i) => (
+        <div key={i} className="p-3 rounded bg-emerald-50">
+          <p className="text-sm text-gray-800">
+            {item.description}
+          </p>
+        </div>
+      ))}
+    </CardContent>
+  </Card>
+)}
+{/* Critical Gaps */}
+{sections?.criticalGaps?.length > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-red-600">
+        Critical Gaps Blocking Production
+      </CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-3">
+      {sections.criticalGaps.map((item, i) => (
+        <div key={i} className="p-3 rounded bg-red-50">
+          <p className="text-sm text-gray-800">
+            {item.description}
+          </p>
+        </div>
+      ))}
+    </CardContent>
+  </Card>
+)}
 
-        {/* Critical Gaps */}
-        {Array.isArray(sections.criticalGaps) &&
-          sections.criticalGaps.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Critical Gaps</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {sections.criticalGaps.map((g, i) => (
-                  <div key={i}>
-                    <h4 className="font-semibold">{g.title}</h4>
-                    <p className="text-gray-600">{g.description}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+{/* 48 Hour Fix Plan */}
+{sections?.fixPlan48h?.length > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle>48-Hour Improvement Plan</CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-2">
+      {sections.fixPlan48h
+        .filter(item => item.goal)
+        .map((item, i) => (
+          <div key={i} className="text-sm text-gray-700">
+            • {item.goal.replace(/^\*\s*/, "")}
+          </div>
+        ))}
+    </CardContent>
+  </Card>
+)}
 
-        {/* 48h Plan */}
-        {Array.isArray(sections.fixPlan48h) &&
-          sections.fixPlan48h.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>48-Hour Execution Plan</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {sections.fixPlan48h.map((p, i) => (
-                  <div key={i}>
-                    <h4 className="font-semibold text-emerald-600">
-                      {p.phase} — {p.goal}
-                    </h4>
-                    {Array.isArray(p.deliverables) &&
-                      p.deliverables.length > 0 && (
-                        <ul className="list-disc pl-6 text-gray-600">
-                          {p.deliverables.map((d, j) => (
-                            <li key={j}>{d}</li>
-                          ))}
-                        </ul>
-                      )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+{/* Career Impact */}
+{sections?.careerImpact && (
+  <Card>
+    <CardHeader>
+      <CardTitle>Career Impact</CardTitle>
+    </CardHeader>
+    <CardContent className="text-gray-700 whitespace-pre-line">
+      {sections.careerImpact}
+    </CardContent>
+  </Card>
+)}
 
-        {/* Career Impact */}
-        {sections.careerImpact && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Career Impact</CardTitle>
-            </CardHeader>
-            <CardContent className="whitespace-pre-line">
-              {sections.careerImpact}
-            </CardContent>
-          </Card>
-        )}
+
       </div>
     </Layout>
   );
