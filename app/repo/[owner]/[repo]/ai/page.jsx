@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Layout from "@/app/components/Layout";
 import AuthRequiredModal from "@/app/components/AuthRequiredModal";
+import NotOwnerModal from "@/app/components/NotOwnerModal";
 
 import { Radar } from "react-chartjs-2";
 import {
@@ -34,7 +35,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/Card";
-import NotOwnerModal from "@/app/components/NotOwnerModal";
 
 ChartJS.register(
   RadialLinearScale,
@@ -50,25 +50,19 @@ export default function RepoDetailPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  const [showNotOwnerModal, setShowNotOwnerModal] = useState(false);
-  const [searchedUsername, setSearchedUsername] = useState(null);
-
   const [repoData, setRepoData] = useState(null);
+  const [searchedUsername, setSearchedUsername] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showNotOwnerModal, setShowNotOwnerModal] = useState(false);
 
+  /* -------------------- INIT -------------------- */
   useEffect(() => {
-    if (status === "loading") return;
-
-    if (!session) {
-      setShowLoginModal(true);
-      setLoading(false);
-      return;
-    }
-
     const init = async () => {
       try {
+        // 🔁 ALWAYS rehydrate from localStorage (refresh-safe)
         const saved = localStorage.getItem("githubData");
         if (!saved) {
           router.push("/");
@@ -84,22 +78,34 @@ export default function RepoDetailPage() {
           return;
         }
 
+        // ✅ PUBLIC DATA (always allowed)
         setRepoData(repoDetails);
         setSearchedUsername(targetUsername);
+
+        // 🔐 AI GATING STARTS HERE
+        if (status === "loading") return;
+
+        // ❌ Not logged in → show modal, DO NOT block page
+        if (!session) {
+          setShowLoginModal(true);
+          setLoading(false);
+          return;
+        }
 
         const loggedInUsername = session.user.username?.toLowerCase();
         const searchedLower = targetUsername.toLowerCase();
 
-        const isOwner = loggedInUsername === searchedLower;
-
-        if (!isOwner) {
+        // ❌ Logged in but not owner → block AI only
+        if (loggedInUsername !== searchedLower) {
           setShowNotOwnerModal(true);
           setLoading(false);
           return;
         }
 
+        // ✅ OWNER → AI allowed
         const cacheKey = `analysis-${repoDetails.name}`;
         const cached = localStorage.getItem(cacheKey);
+
         if (cached) {
           setAnalysis(JSON.parse(cached));
           setLoading(false);
@@ -119,7 +125,7 @@ export default function RepoDetailPage() {
         setAnalysis(data);
         localStorage.setItem(cacheKey, JSON.stringify(data));
       } catch (err) {
-        console.error("Analysis load failed", err);
+        console.error("Repo detail load failed", err);
       } finally {
         setLoading(false);
       }
@@ -128,7 +134,7 @@ export default function RepoDetailPage() {
     init();
   }, [repo, router, session, status]);
 
-  /* ---------- LOADING ---------- */
+  /* -------------------- LOADING -------------------- */
   if (loading) {
     return (
       <Layout>
@@ -139,16 +145,9 @@ export default function RepoDetailPage() {
     );
   }
 
-  /* ---------- SAFETY ---------- */
-  const scores =
-    analysis?.scores && typeof analysis.scores === "object"
-      ? analysis.scores
-      : {};
-
-  const sections =
-    analysis?.sections && typeof analysis.sections === "object"
-      ? analysis.sections
-      : {};
+  /* -------------------- SAFE DATA -------------------- */
+  const scores = analysis?.scores || {};
+  const sections = analysis?.sections || {};
 
   const radarData =
     Object.keys(scores).length > 0
@@ -167,17 +166,17 @@ export default function RepoDetailPage() {
         }
       : null;
 
+  /* -------------------- RENDER -------------------- */
   return (
     <Layout>
-      <NotOwnerModal
-        open={showNotOwnerModal}
-        onClose={() => setShowNotOwnerModal(false)}
-      />
-
-      {/* 🔐 LOGIN MODAL */}
       <AuthRequiredModal
         open={showLoginModal}
         onClose={() => setShowLoginModal(false)}
+      />
+
+      <NotOwnerModal
+        open={showNotOwnerModal}
+        onClose={() => setShowNotOwnerModal(false)}
       />
 
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
@@ -197,16 +196,7 @@ export default function RepoDetailPage() {
             </p>
           </CardContent>
         </Card>
-    {sections?.executiveVerdict && (
-  <Card>
-    <CardHeader>
-      <CardTitle>Executive Verdict</CardTitle>
-    </CardHeader>
-    <CardContent className="text-gray-700 leading-relaxed">
-      {sections.executiveVerdict}
-    </CardContent>
-  </Card>
-)}
+
         {/* GitHub Meta */}
         <Card>
           <CardContent className="p-6 grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -242,9 +232,8 @@ export default function RepoDetailPage() {
             )}
           </CardContent>
         </Card>
-
-        {/* Scores */}
-        {Object.keys(scores).length > 0 && (
+            {/*scores */}
+             {Object.keys(scores).length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {Object.entries(scores).map(([k, v]) => (
               <Card key={k}>
@@ -258,21 +247,31 @@ export default function RepoDetailPage() {
             ))}
           </div>
         )}
+        {/* AI Sections (only if available) */}
+    {radarData && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="flex gap-2 items-center">
+        <TrendingUp /> Project Health
+      </CardTitle>
+    </CardHeader>
 
-        {/* Radar */}
-        {radarData && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex gap-2">
-                <TrendingUp /> Project Health
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-80">
-              <Radar data={radarData} />
-            </CardContent>
-          </Card>
-        )}
-        {/* Strengths */}
+    <CardContent>
+      {/* Responsive container */}
+      <div className="relative h-56 sm:h-64 md:h-72 lg:h-80 xl:h-96">
+        <Radar
+          data={radarData}
+          options={{
+            responsive: true,
+            maintainAspectRatio: false,
+          }}
+        />
+      </div>
+    </CardContent>
+  </Card>
+)}
+
+            {/* Strengths */}
 {sections?.strengths?.length > 0 && (
   <Card>
     <CardHeader>
@@ -338,8 +337,7 @@ export default function RepoDetailPage() {
     </CardContent>
   </Card>
 )}
-
-
+        
       </div>
     </Layout>
   );

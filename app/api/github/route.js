@@ -7,6 +7,24 @@ const GITHUB_API_VERSION = "2022-11-28";
 const REPOS_PER_PAGE = 100;
 const MAX_REPOS_TO_FETCH = 100;
 
+/* ================== HEADERS ================== */
+
+// ✅ PUBLIC (NO AUTH — NEVER FAILS)
+const publicHeaders = {
+  Accept: "application/vnd.github+json",
+  "X-GitHub-Api-Version": GITHUB_API_VERSION,
+  "User-Agent": "gitprofile-ai",
+};
+
+// ✅ AUTH (OPTIONAL)
+function getAuthHeaders(token) {
+  if (!token) return publicHeaders;
+  return {
+    ...publicHeaders,
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 /* ================== HELPERS ================== */
 
 function validateUsername(username) {
@@ -25,20 +43,6 @@ function validateUsername(username) {
   }
 
   return { valid: true, username: sanitized };
-}
-
-function getGitHubHeaders(token) {
-  const headers = {
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": GITHUB_API_VERSION,
-    "User-Agent": "gitprofile-ai",
-  };
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  return headers;
 }
 
 async function handleGitHubResponse(res, context) {
@@ -79,33 +83,40 @@ async function fetchExactContributions(username, headers) {
     }
   `;
 
-  const res = await fetch(GITHUB_GRAPHQL, {
-    method: "POST",
-    headers: {
-      ...headers,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ query, variables: { login: username } }),
-  });
+  try {
+    const res = await fetch(GITHUB_GRAPHQL, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query, variables: { login: username } }),
+    });
 
-  const json = await res.json();
+    const json = await res.json();
 
-  if (json.errors) {
-    throw new Error("GraphQL contribution fetch failed");
+    if (
+      json.errors ||
+      !json.data ||
+      !json.data.user ||
+      !json.data.user.contributionsCollection
+    ) {
+      return null;
+    }
+
+    return json.data.user.contributionsCollection;
+  } catch {
+    return null;
   }
-
-  return json.data.user.contributionsCollection;
 }
 
 /* ================== FETCH REPOS ================== */
 
-async function fetchAllRepos({ username, headers, isAuthenticated }) {
+async function fetchAllRepos({ username, headers }) {
   let repos = [];
   let page = 1;
 
-  const baseUrl = isAuthenticated
-    ? `${GITHUB_API}/user/repos?visibility=all`
-    : `${GITHUB_API}/users/${username}/repos?visibility=public`;
+  const baseUrl = `${GITHUB_API}/users/${username}/repos?visibility=public`;
 
   while (repos.length < MAX_REPOS_TO_FETCH) {
     const res = await fetch(
@@ -185,41 +196,18 @@ export async function POST(req) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    const isAuthenticated = Boolean(accessToken);
-
-    const headers = getGitHubHeaders(
-      isAuthenticated ? accessToken : process.env.GITHUB_TOKEN
-    );
-
     const cleanUsername = validation.username;
 
-    const [profileRes, repos, totalPRRes, mergedPRRes, openPRRes, graphStats] =
-      await Promise.all([
-        fetch(`${GITHUB_API}/users/${cleanUsername}`, { headers }),
-        fetchAllRepos({
-          username: cleanUsername,
-          headers,
-          isAuthenticated,
-        }),
-        fetch(
-          `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr&per_page=1`,
-          { headers }
-        ),
-        fetch(
-          `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr+is:merged&per_page=1`,
-          { headers }
-        ),
-        fetch(
-          `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr+is:open&per_page=1`,
-          { headers }
-        ),
-        fetchExactContributions(cleanUsername, headers),
-      ]);
+    // ✅ PUBLIC PROFILE (NO AUTH)
+    const profileRes = await fetch(`${GITHUB_API}/users/${cleanUsername}`, {
+      headers: publicHeaders,
+    });
 
     const profileResult = await handleGitHubResponse(
       profileRes,
       "Profile fetch failed"
     );
+
     if (profileResult.error) {
       return NextResponse.json(
         { error: profileResult.message },
@@ -227,9 +215,43 @@ export async function POST(req) {
       );
     }
 
-    const totalPR = (await totalPRRes.json()).total_count || 0;
-    const mergedPR = (await mergedPRRes.json()).total_count || 0;
-    const openPR = (await openPRRes.json()).total_count || 0;
+    // ✅ PUBLIC REPOS
+    const repos = await fetchAllRepos({
+      username: cleanUsername,
+      headers: publicHeaders,
+    });
+
+    // ✅ OPTIONAL / AUTH FEATURES
+    const authHeaders = getAuthHeaders(accessToken);
+
+    const [totalPRRes, mergedPRRes, openPRRes, graphStatsRaw] =
+      await Promise.all([
+        fetch(
+          `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr&per_page=1`,
+          { headers: authHeaders }
+        ),
+        fetch(
+          `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr+is:merged&per_page=1`,
+          { headers: authHeaders }
+        ),
+        fetch(
+          `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr+is:open&per_page=1`,
+          { headers: authHeaders }
+        ),
+        fetchExactContributions(cleanUsername, authHeaders),
+      ]);
+
+    const totalPR = totalPRRes.ok ? (await totalPRRes.json()).total_count : 0;
+    const mergedPR = mergedPRRes.ok
+      ? (await mergedPRRes.json()).total_count
+      : 0;
+    const openPR = openPRRes.ok ? (await openPRRes.json()).total_count : 0;
+
+    const graphStats = graphStatsRaw ?? {
+      totalCommitContributions: 0,
+      totalPullRequestContributions: 0,
+      totalIssueContributions: 0,
+    };
 
     return NextResponse.json({
       profile: normalizeProfile(profileResult.data),
@@ -250,7 +272,7 @@ export async function POST(req) {
             new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
         ).length,
       },
-      authMode: isAuthenticated ? "authenticated" : "guest",
+      authMode: accessToken ? "authenticated" : "guest",
     });
   } catch (err) {
     console.error(err);
