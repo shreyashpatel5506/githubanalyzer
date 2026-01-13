@@ -94,8 +94,9 @@ export default function Navbar() {
             className="w-8 h-8 rounded-full"
             alt="profile"
           />
+
           <span className="font-medium text-slate-700">
-            {session.user.username}
+            {session.user.name || "GitHub User"}
           </span>
         </button>
       )}

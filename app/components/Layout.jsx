@@ -2,10 +2,14 @@
 
 import { Github, Sparkles, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { CircleUser } from "lucide-react";
+import ProfileModal from "./ProfileModal";
 
 export default function Layout({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
+    const { data: session } = useSession();
+    const [openProfile, setOpenProfile] = useState(false);
   // Close mobile menu when clicking outside or on escape
   useEffect(() => {
     const handleEscape = (e) => {
@@ -67,6 +71,23 @@ export default function Layout({ children }) {
                 <Github className="w-5 h-5" />
                 <span>GitHub</span>
               </a>
+                {session && (
+                      <button
+                        onClick={() => setOpenProfile(true)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition"
+                      >
+                        <img
+                          src={session.user.image}
+                          className="w-8 h-8 rounded-full"
+                          alt="profile"
+                        />
+              
+                        <span className="font-medium text-slate-700">
+                          {session.user.name || "GitHub User"}
+                        </span>
+                      </button>
+                    )}
+              
             </nav>
 
             {/* Mobile menu button */}
@@ -78,6 +99,8 @@ export default function Layout({ children }) {
             </button>
           </div>
         </div>
+        
+                    
       </header>
 
       {/* Mobile Navigation Overlay */}
@@ -148,6 +171,24 @@ export default function Layout({ children }) {
               <Github className="w-5 h-5" />
               <span>GitHub</span>
             </a>
+              {session && (
+                    <button
+                      onClick={() => setOpenProfile(true)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition"
+                    >
+                      <img
+                        src={session.user.image}
+                        className="w-8 h-8 rounded-full"
+                        alt="profile"
+                      />
+            
+                      <span className="font-medium text-slate-700">
+                        {session.user.name || "GitHub User"}
+                      </span>
+                    </button>
+                  )}
+            
+                  
           </div>
         </nav>
       </div>
@@ -157,6 +198,11 @@ export default function Layout({ children }) {
         {children}
       </main>
 
+      {/* profilemodal */}
+      <ProfileModal
+  open={openProfile}
+  onClose={() => setOpenProfile(false)}
+/>
       {/* Footer - Fixed at bottom when content is short */}
       <footer className="mt-auto bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
