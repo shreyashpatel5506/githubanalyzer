@@ -1,23 +1,59 @@
-import { callOpenAI } from "./provider/openai";
+import { callGroq } from "./provider/groq";
 import { callGemini } from "./provider/gemini";
+import { callOpenAI } from "./provider/openai";
+
+// Gemini cooldown (NOTE: should be persisted later)
+let geminiDisabledUntil = 0;
+
+function isQuotaError(err) {
+  const msg = err?.message?.toLowerCase() || "";
+  return (
+    err?.status === 429 ||
+    err?.code === "rate_limit_exceeded" ||
+    msg.includes("quota") ||
+    msg.includes("rate")
+  );
+}
 
 export async function runAI(prompt) {
+  let groqError = null;
   let geminiError = null;
   let openAIError = null;
 
-  // 1️⃣ Try Gemini first
-  if (process.env.ENABLE_GEMINI === "true" && process.env.GEMINI_API_KEY) {
+  const now = Date.now();
+
+  // 1️⃣ GROQ — FREE & FAST (PRIMARY)
+  if (process.env.GROQ_API_KEY) {
+    try {
+      return await callGroq(prompt);
+    } catch (err) {
+      groqError = err;
+      console.warn("⚠️ Groq failed:", err.message);
+    }
+  }
+
+  // 2️⃣ GEMINI — FREE BUT FRAGILE
+  if (
+    process.env.ENABLE_GEMINI === "true" &&
+    process.env.GEMINI_API_KEY &&
+    now > geminiDisabledUntil
+  ) {
     try {
       return await callGemini(prompt);
     } catch (err) {
       geminiError = err;
-      console.warn("⚠️ Gemini failed:", err.message);
+
+      if (isQuotaError(err)) {
+        // ⛔ Disable Gemini for 24h
+        geminiDisabledUntil = now + 24 * 60 * 60 * 1000;
+        console.warn("🚫 Gemini quota hit. Disabled for 24h.");
+      } else {
+        console.warn("⚠️ Gemini failed:", err.message);
+      }
     }
-  } else {
-    console.log("Gemini disabled or API key missing, skipping.");
   }
 
-  // 2️⃣ OpenAI key rotation
+  // 3️⃣ OPENAI — PAID / EMERGENCY
   const openaiKeys = process.env.OPENAI_KEYS?.split(",") || [];
 
   for (const rawKey of openaiKeys) {
@@ -25,29 +61,23 @@ export async function runAI(prompt) {
     if (!key) continue;
 
     try {
-      console.log("Trying OpenAI key...");
       return await callOpenAI(prompt, key);
     } catch (err) {
       openAIError = err;
       console.error("❌ OpenAI key failed:", err.message);
 
-      // ⛔ Do NOT rotate key for non-quota errors
-      if (
-        !err.message.includes("429") &&
-        !err.message.toLowerCase().includes("quota") &&
-        !err.message.toLowerCase().includes("rate")
-      ) {
-        break;
-      }
+      // Rotate ONLY on quota errors
+      if (!isQuotaError(err)) break;
     }
   }
 
-  // 3️⃣ Final clear error
+  // 4️⃣ HARD FAIL (CLEAR + DEBUGGABLE)
   throw new Error(
     [
       "AI analysis failed.",
-      geminiError ? `Gemini: ${geminiError.message}` : "Gemini: not attempted",
-      openAIError ? `OpenAI: ${openAIError.message}` : "OpenAI: not attempted",
-    ].join(" ")
+      groqError ? `Groq: ${groqError.message}` : "Groq: skipped",
+      geminiError ? `Gemini: ${geminiError.message}` : "Gemini: skipped",
+      openAIError ? `OpenAI: ${openAIError.message}` : "OpenAI: skipped",
+    ].join(" | ")
   );
 }
