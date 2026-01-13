@@ -24,6 +24,20 @@ export const authOptions = {
     async signIn({ user, account, profile }) {
       await connectMongo();
 
+      let email = profile.email || null;
+
+      if (!email && account?.access_token) {
+        const res = await fetch("https://api.github.com/user/emails", {
+          headers: {
+            Authorization: `Bearer ${account.access_token}`,
+            Accept: "application/vnd.github+json",
+          },
+        });
+
+        const emails = await res.json();
+        email = emails?.find((e) => e.primary && e.verified)?.email || null;
+      }
+
       let dbUser = await User.findOne({ githubId: profile.id });
 
       if (!dbUser) {
@@ -31,7 +45,7 @@ export const authOptions = {
           githubId: profile.id,
           username: profile.login,
           avatar: profile.avatar_url,
-          email: profile.email,
+          email,
           plan: "free",
         });
       }
