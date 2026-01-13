@@ -1,5 +1,6 @@
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import Providers from "./providers";
 import "./globals.css";
 import Script from "next/script";
 
@@ -84,7 +85,7 @@ export default function RootLayout({ children }) {
             style={{ display: "none", visibility: "hidden" }}
           />
         </noscript>
-        {children}
+        <Providers>{children}</Providers>
         <Analytics />
       </body>
     </html>
