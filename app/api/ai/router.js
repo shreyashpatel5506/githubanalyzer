@@ -1,38 +1,83 @@
-import { callOpenAI } from "./provider/openai";
+import { callGroq } from "./provider/groq";
 import { callGemini } from "./provider/gemini";
+import { callOpenAI } from "./provider/openai";
+
+// Gemini cooldown (NOTE: should be persisted later)
+let geminiDisabledUntil = 0;
+
+function isQuotaError(err) {
+  const msg = err?.message?.toLowerCase() || "";
+  return (
+    err?.status === 429 ||
+    err?.code === "rate_limit_exceeded" ||
+    msg.includes("quota") ||
+    msg.includes("rate")
+  );
+}
 
 export async function runAI(prompt) {
-  let lastError = null;
+  let groqError = null;
+  let geminiError = null;
+  let openAIError = null;
 
-  // 1️⃣ Pehle Gemini try karo (Agar enabled hai)
-  if (process.env.ENABLE_GEMINI === "true") {
+  const now = Date.now();
+
+  // 1️⃣ GROQ — FREE & FAST (PRIMARY)
+  if (process.env.GROQ_API_KEY) {
     try {
-      console.log("Attempting Gemini first...");
-      return await callGemini(prompt);
+      return await callGroq(prompt);
     } catch (err) {
-      lastError = err;
-      console.warn("⚠️ Gemini failed, falling back to OpenAI:", err.message);
+      groqError = err;
+      console.warn("⚠️ Groq failed:", err.message);
     }
-  } else {
-    console.log("Gemini is disabled, skipping to OpenAI.");
   }
 
-  // 2️⃣ Agar Gemini fail hua ya disabled hai, tab OpenAI keys rotate karo
-  const openaiKeys = process.env.OPENAI_KEYS?.split(",") || [];
+  // 2️⃣ GEMINI — FREE BUT FRAGILE
+  if (
+    process.env.ENABLE_GEMINI === "true" &&
+    process.env.GEMINI_API_KEY &&
+    now > geminiDisabledUntil
+  ) {
+    try {
+      return await callGemini(prompt);
+    } catch (err) {
+      geminiError = err;
 
-  if (openaiKeys.length > 0) {
-    for (const key of openaiKeys) {
-      try {
-        return await callOpenAI(prompt, key.trim());
-      } catch (err) {
-        lastError = err;
-        console.error("OpenAI key failed:", err.message);
+      if (isQuotaError(err)) {
+        // ⛔ Disable Gemini for 24h
+        geminiDisabledUntil = now + 24 * 60 * 60 * 1000;
+        console.warn("🚫 Gemini quota hit. Disabled for 24h.");
+      } else {
+        console.warn("⚠️ Gemini failed:", err.message);
       }
     }
   }
 
-  // ❌ Dono options khatam hone par Error throw karein
+  // 3️⃣ OPENAI — PAID / EMERGENCY
+  const openaiKeys = process.env.OPENAI_KEYS?.split(",") || [];
+
+  for (const rawKey of openaiKeys) {
+    const key = rawKey.trim();
+    if (!key) continue;
+
+    try {
+      return await callOpenAI(prompt, key);
+    } catch (err) {
+      openAIError = err;
+      console.error("❌ OpenAI key failed:", err.message);
+
+      // Rotate ONLY on quota errors
+      if (!isQuotaError(err)) break;
+    }
+  }
+
+  // 4️⃣ HARD FAIL (CLEAR + DEBUGGABLE)
   throw new Error(
-    `Both providers failed. Gemini Error: ${lastError?.message}. Check OpenAI keys.`
+    [
+      "AI analysis failed.",
+      groqError ? `Groq: ${groqError.message}` : "Groq: skipped",
+      geminiError ? `Gemini: ${geminiError.message}` : "Gemini: skipped",
+      openAIError ? `OpenAI: ${openAIError.message}` : "OpenAI: skipped",
+    ].join(" | ")
   );
 }
