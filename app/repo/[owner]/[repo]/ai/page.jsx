@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, signIn } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Layout from "@/app/components/Layout";
@@ -34,6 +34,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/Card";
+import NotOwnerModal from "@/app/components/NotOwnerModal";
 
 ChartJS.register(
   RadialLinearScale,
@@ -49,6 +50,9 @@ export default function RepoDetailPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
+  const [showNotOwnerModal, setShowNotOwnerModal] = useState(false);
+  const [searchedUsername, setSearchedUsername] = useState(null);
+
   const [repoData, setRepoData] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,24 +61,42 @@ export default function RepoDetailPage() {
   useEffect(() => {
     if (status === "loading") return;
 
-    // ❌ Not logged in → open modal, stop execution
     if (!session) {
       setShowLoginModal(true);
       setLoading(false);
       return;
     }
 
-    // ✅ Logged in → proceed as before
     const init = async () => {
       try {
         const saved = localStorage.getItem("githubData");
-        if (!saved) return router.push("/");
+        if (!saved) {
+          router.push("/");
+          return;
+        }
 
         const parsed = JSON.parse(saved);
         const repoDetails = parsed?.repos?.find((r) => r.name === repo);
-        if (!repoDetails) return router.push("/projects");
+        const targetUsername = parsed?.profile?.username;
+
+        if (!repoDetails || !targetUsername) {
+          router.push("/");
+          return;
+        }
 
         setRepoData(repoDetails);
+        setSearchedUsername(targetUsername);
+
+        const loggedInUsername = session.user.username?.toLowerCase();
+        const searchedLower = targetUsername.toLowerCase();
+
+        const isOwner = loggedInUsername === searchedLower;
+
+        if (!isOwner) {
+          setShowNotOwnerModal(true);
+          setLoading(false);
+          return;
+        }
 
         const cacheKey = `analysis-${repoDetails.name}`;
         const cached = localStorage.getItem(cacheKey);
@@ -87,7 +109,10 @@ export default function RepoDetailPage() {
         const res = await fetch("/api/analysis", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ repoDetails }),
+          body: JSON.stringify({
+            repoDetails,
+            searchedUsername: targetUsername,
+          }),
         });
 
         const data = await res.json();
@@ -144,6 +169,11 @@ export default function RepoDetailPage() {
 
   return (
     <Layout>
+      <NotOwnerModal
+        open={showNotOwnerModal}
+        onClose={() => setShowNotOwnerModal(false)}
+      />
+
       {/* 🔐 LOGIN MODAL */}
       <AuthRequiredModal
         open={showLoginModal}

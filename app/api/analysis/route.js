@@ -72,6 +72,32 @@ export async function POST(req) {
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+    const { repoDetails, searchedUsername } = await req.json();
+    // 🔐 OWNER VERIFICATION (CRITICAL)
+
+    if (!repoDetails || !searchedUsername) {
+      return NextResponse.json(
+        { error: "Repo details or username missing" },
+        { status: 400 }
+      );
+    }
+
+    // Logged-in GitHub username
+    const loggedInUsername = session.user.username?.toLowerCase();
+    const targetUsername = searchedUsername.toLowerCase();
+
+    const isOwner = loggedInUsername === targetUsername;
+
+    if (!isOwner) {
+      return NextResponse.json(
+        {
+          error: "Not profile owner",
+          mode: "public_only",
+          message: "AI analysis is only available for your own GitHub profile.",
+        },
+        { status: 403 }
+      );
+    }
 
     // 3️⃣ Pro users = no limits
     if (user.plan !== "pro") {
@@ -102,7 +128,6 @@ export async function POST(req) {
       }
     }
 
-    const { repoDetails } = await req.json();
     if (!repoDetails) {
       return NextResponse.json(
         { error: "Repo details missing" },

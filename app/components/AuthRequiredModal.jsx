@@ -34,9 +34,12 @@ export default function AuthRequiredModal({ open, onClose }) {
             Login required
           </h2>
 
-          <p className="text-sm text-slate-400">
-            Sign in with GitHub to analyze repositories and track usage.
-          </p>
+         <p className="text-sm text-gray-400 text-center">
+  To unlock full analysis, please sign in with the
+  <span className="text-white font-medium"> same GitHub account </span>
+  as the searched profile.
+</p>
+
         </div>
 
         {/* Action */}
