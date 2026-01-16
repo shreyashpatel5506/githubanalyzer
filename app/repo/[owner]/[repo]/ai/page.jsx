@@ -103,14 +103,23 @@ export default function RepoDetailPage() {
         }
 
         // ✅ OWNER → AI allowed
-        const cacheKey = `analysis-${repoDetails.name}`;
-        const cached = localStorage.getItem(cacheKey);
+        const cacheKey = `analysis:v1:${searchedUsername}:${repoDetails.name}`;
 
-        if (cached) {
-          setAnalysis(JSON.parse(cached));
-          setLoading(false);
-          return;
-        }
+       const cached = localStorage.getItem(cacheKey);
+
+if (cached) {
+  const parsed = JSON.parse(cached);
+
+  if (Date.now() < parsed.expiresAt) {
+    setAnalysis(parsed.data);
+    setLoading(false);
+    return;
+  }
+
+  // 🧹 expired
+  localStorage.removeItem(cacheKey);
+}
+
 
         const res = await fetch("/api/analysis", {
           method: "POST",
@@ -123,7 +132,15 @@ export default function RepoDetailPage() {
 
         const data = await res.json();
         setAnalysis(data);
-        localStorage.setItem(cacheKey, JSON.stringify(data));
+
+localStorage.setItem(
+  cacheKey,
+  JSON.stringify({
+    data,
+    expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+  })
+);
+
       } catch (err) {
         console.error("Repo detail load failed", err);
       } finally {
