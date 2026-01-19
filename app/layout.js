@@ -64,6 +64,8 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={inter.variable}>
       <head>
+        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4055022098367074"
+     crossorigin="anonymous"></script>
         <Script
           id="gtm-script"
           strategy="afterInteractive"
