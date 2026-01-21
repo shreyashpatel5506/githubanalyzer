@@ -46,7 +46,7 @@ const RepoActionModal = ({ open, onClose, owner, repo }) => {
             className="w-full flex items-center gap-3 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
           >
             <Brain className="w-5 h-5" />
-            Run AI Analysis
+            Deep Analysis
           </button>
         </div>
 

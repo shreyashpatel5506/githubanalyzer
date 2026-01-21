@@ -80,6 +80,10 @@ const RepoDetailPage = () => {
     );
   }
 
+  const goToAI = () => {
+    router.push(`/repo/${params.owner}/${params.repo}/ai`);
+  };
+
   return (
     <Layout>
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
@@ -136,11 +140,11 @@ const RepoDetailPage = () => {
               )}
 
               <button
-                onClick={() => router.push(`/repo/${params.repo}/ai`)}
+                onClick={goToAI}
                 className="px-4 py-2 border rounded-lg flex items-center gap-2"
               >
                 <Brain className="w-4 h-4" />
-                Run AI Analysis
+                Deep Analysis
               </button>
             </div>
           </CardContent>
