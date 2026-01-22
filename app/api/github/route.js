@@ -66,7 +66,7 @@ async function handleGitHubResponse(res, context) {
 
 async function fetchExactContributions(username, headers) {
   const fromDate = new Date(
-    Date.now() - 90 * 24 * 60 * 60 * 1000
+    Date.now() - 90 * 24 * 60 * 60 * 1000,
   ).toISOString();
 
   const query = `
@@ -114,7 +114,7 @@ async function fetchAllRepos({ username, headers }) {
   while (repos.length < MAX_REPOS_TO_FETCH) {
     const res = await fetch(
       `${baseUrl}&per_page=${REPOS_PER_PAGE}&page=${page}&sort=updated`,
-      { headers }
+      { headers },
     );
 
     const result = await handleGitHubResponse(res, "Failed to fetch repos");
@@ -135,7 +135,7 @@ async function estimateCommits(username, repos) {
   for (const repo of repos.slice(0, 10)) {
     const res = await fetch(
       `${GITHUB_API}/repos/${username}/${repo.name}/commits?author=${username}&per_page=1`,
-      { headers: publicHeaders }
+      { headers: publicHeaders },
     );
 
     if (!res.ok) continue;
@@ -160,7 +160,7 @@ async function estimatePRBreakdown(username, repos) {
   for (const repo of repos.slice(0, 10)) {
     const openRes = await fetch(
       `${GITHUB_API}/repos/${username}/${repo.name}/pulls?state=open&per_page=1`,
-      { headers: publicHeaders }
+      { headers: publicHeaders },
     );
 
     if (openRes.ok) {
@@ -173,7 +173,7 @@ async function estimatePRBreakdown(username, repos) {
 
     const closedRes = await fetch(
       `${GITHUB_API}/repos/${username}/${repo.name}/pulls?state=closed&per_page=30`,
-      { headers: publicHeaders }
+      { headers: publicHeaders },
     );
 
     if (closedRes.ok) {
@@ -255,13 +255,13 @@ export async function POST(req) {
 
     const profileResult = await handleGitHubResponse(
       profileRes,
-      "Profile fetch failed"
+      "Profile fetch failed",
     );
 
     if (profileResult.error) {
       return NextResponse.json(
         { error: profileResult.message },
-        { status: profileResult.status }
+        { status: profileResult.status },
       );
     }
 
@@ -282,15 +282,15 @@ export async function POST(req) {
         await Promise.all([
           fetch(
             `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr&per_page=1`,
-            { headers: authHeaders }
+            { headers: authHeaders },
           ),
           fetch(
             `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr+is:merged&per_page=1`,
-            { headers: authHeaders }
+            { headers: authHeaders },
           ),
           fetch(
             `${GITHUB_API}/search/issues?q=author:${cleanUsername}+type:pr+is:open&per_page=1`,
-            { headers: authHeaders }
+            { headers: authHeaders },
           ),
           fetchExactContributions(cleanUsername, authHeaders),
         ]);
@@ -340,7 +340,7 @@ export async function POST(req) {
     console.error(err);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

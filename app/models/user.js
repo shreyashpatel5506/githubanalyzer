@@ -17,7 +17,7 @@ const UserSchema = new mongoose.Schema(
 
     plan: {
       type: String,
-      enum: ["free", "pro"],
+      enum: ["free", "pro", "pro_plus"],
       default: "free",
     },
 
@@ -25,7 +25,7 @@ const UserSchema = new mongoose.Schema(
       type: Date,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export default mongoose.models.User || mongoose.model("User", UserSchema);

@@ -17,8 +17,12 @@ const UsageSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    readmeGenerateCount: {
+      type: Number,
+      default: 0,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 UsageSchema.index({ userId: 1, date: 1 }, { unique: true });

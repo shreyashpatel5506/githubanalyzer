@@ -46,7 +46,7 @@ ChartJS.register(
 );
 
 export default function RepoDetailPage() {
-  const { repo } = useParams();
+  const { owner,repo } = useParams();
   const router = useRouter();
   const { data: session, status } = useSession();
 
@@ -160,7 +160,12 @@ localStorage.setItem(
         </div>
       </Layout>
     );
+
   }
+  
+const handleGenerateReadme = () => {
+  router.push(`/repo/${owner}/${repo}/ai/readmegenrator`);
+};
 
   /* -------------------- SAFE DATA -------------------- */
   const scores = analysis?.scores || {};
@@ -197,6 +202,7 @@ localStorage.setItem(
       />
 
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+        <div className="flex items-center justify-between">
         <button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-gray-500"
@@ -204,6 +210,13 @@ localStorage.setItem(
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
+        <button
+          onClick={handleGenerateReadme}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          Generate Readme
+        </button>
+      </div>
         {/* Header */}
         <Card>
           <CardContent className="p-8">
