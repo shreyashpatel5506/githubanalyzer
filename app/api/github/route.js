@@ -127,8 +127,6 @@ async function fetchAllRepos({ username, headers }) {
   return repos.slice(0, MAX_REPOS_TO_FETCH);
 }
 
-/* ================== GUEST MODE ESTIMATES ================== */
-
 async function estimateCommits(username, repos) {
   let commits = 0;
 

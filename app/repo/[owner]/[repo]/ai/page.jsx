@@ -6,29 +6,14 @@ import { useParams, useRouter } from "next/navigation";
 import Layout from "@/app/components/Layout";
 import AuthRequiredModal from "@/app/components/AuthRequiredModal";
 import NotOwnerModal from "@/app/components/NotOwnerModal";
-
-import { Radar } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  RadialLinearScale,
-  PointElement,
-  LineElement,
-  Filler,
-  Tooltip,
-  Legend,
-} from "chart.js";
-
 import {
   ArrowLeft,
-  TrendingUp,
-  Loader2,
-  Star,
-  GitFork,
   Code,
-  Calendar,
-  ExternalLink,
+  AlertTriangle,
+  Lock,
+  FileText,
+  Loader2,
 } from "lucide-react";
-
 import {
   Card,
   CardContent,
@@ -36,33 +21,29 @@ import {
   CardTitle,
 } from "@/app/components/Card";
 
-ChartJS.register(
-  RadialLinearScale,
-  PointElement,
-  LineElement,
-  Filler,
-  Tooltip,
-  Legend
-);
-
-export default function RepoDetailPage() {
-  const { owner,repo } = useParams();
+/**
+ * Deep Analysis Dashboard
+ * Navigation hub for repo-level AI analysis
+ *
+ * Shows real counts from backend scanning APIs
+ * Routes to sub-pages for detailed analysis
+ */
+export default function DeepAnalysisDashboard() {
+  const { owner, repo } = useParams();
   const router = useRouter();
   const { data: session, status } = useSession();
 
   const [repoData, setRepoData] = useState(null);
-  const [searchedUsername, setSearchedUsername] = useState(null);
-  const [analysis, setAnalysis] = useState(null);
-
+  const [scanResults, setScanResults] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showNotOwnerModal, setShowNotOwnerModal] = useState(false);
+  const [error, setError] = useState(null);
 
-  /* -------------------- INIT -------------------- */
   useEffect(() => {
     const init = async () => {
       try {
-        // 🔁 ALWAYS rehydrate from localStorage (refresh-safe)
+        // Rehydrate from localStorage
         const saved = localStorage.getItem("githubData");
         if (!saved) {
           router.push("/");
@@ -78,14 +59,11 @@ export default function RepoDetailPage() {
           return;
         }
 
-        // ✅ PUBLIC DATA (always allowed)
         setRepoData(repoDetails);
-        setSearchedUsername(targetUsername);
 
-        // 🔐 AI GATING STARTS HERE
+        // Gating logic
         if (status === "loading") return;
 
-        // ❌ Not logged in → show modal, DO NOT block page
         if (!session) {
           setShowLoginModal(true);
           setLoading(false);
@@ -95,54 +73,38 @@ export default function RepoDetailPage() {
         const loggedInUsername = session.user.username?.toLowerCase();
         const searchedLower = targetUsername.toLowerCase();
 
-        // ❌ Logged in but not owner → block AI only
         if (loggedInUsername !== searchedLower) {
           setShowNotOwnerModal(true);
           setLoading(false);
           return;
         }
 
-        // ✅ OWNER → AI allowed
-        const cacheKey = `analysis:v1:${searchedUsername}:${repoDetails.name}`;
-
-       const cached = localStorage.getItem(cacheKey);
-
-if (cached) {
-  const parsed = JSON.parse(cached);
-
-  if (Date.now() < parsed.expiresAt) {
-    setAnalysis(parsed.data);
-    setLoading(false);
-    return;
-  }
-
-  // 🧹 expired
-  localStorage.removeItem(cacheKey);
-}
-
-
-        const res = await fetch("/api/analysis", {
+        // Fetch scan results from backend
+        const scanRes = await fetch("/api/smells/detect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            repoDetails,
-            searchedUsername: targetUsername,
+            owner: targetUsername,
+            repo: repoDetails.name,
+            planTier: session.user.plan || "free",
           }),
         });
 
-        const data = await res.json();
-        setAnalysis(data);
+        if (!scanRes.ok) {
+          setError("Failed to fetch scan results");
+          setLoading(false);
+          return;
+        }
 
-localStorage.setItem(
-  cacheKey,
-  JSON.stringify({
-    data,
-    expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-  })
-);
-
+        const scanData = await scanRes.json();
+        if (scanData.success) {
+          setScanResults(scanData.data);
+        } else {
+          setError(scanData.error || "Scan failed");
+        }
       } catch (err) {
-        console.error("Repo detail load failed", err);
+        console.error("Dashboard init error:", err);
+        setError("Failed to load analysis dashboard");
       } finally {
         setLoading(false);
       }
@@ -151,7 +113,6 @@ localStorage.setItem(
     init();
   }, [repo, router, session, status]);
 
-  /* -------------------- LOADING -------------------- */
   if (loading) {
     return (
       <Layout>
@@ -160,215 +121,218 @@ localStorage.setItem(
         </div>
       </Layout>
     );
-
   }
-  
-const handleGenerateReadme = () => {
-  router.push(`/repo/${owner}/${repo}/ai/readmegenrator`);
-};
 
-  /* -------------------- SAFE DATA -------------------- */
-  const scores = analysis?.scores || {};
-  const sections = analysis?.sections || {};
-
-  const radarData =
-    Object.keys(scores).length > 0
-      ? {
-          labels: Object.keys(scores).map((k) =>
-            k.replace(/([A-Z])/g, " $1")
-          ),
-          datasets: [
-            {
-              data: Object.values(scores),
-              fill: true,
-              backgroundColor: "rgba(16,185,129,0.15)",
-              borderColor: "#10b981",
-            },
-          ],
-        }
-      : null;
-
-  /* -------------------- RENDER -------------------- */
   return (
     <Layout>
       <AuthRequiredModal
         open={showLoginModal}
         onClose={() => setShowLoginModal(false)}
       />
-
       <NotOwnerModal
         open={showNotOwnerModal}
         onClose={() => setShowNotOwnerModal(false)}
       />
 
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-        <div className="flex items-center justify-between">
+        {/* Back Button */}
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 text-gray-500"
+          className="flex items-center gap-2 text-gray-500 hover:text-black"
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
-        <button
-          onClick={handleGenerateReadme}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          Generate Readme
-        </button>
-      </div>
         {/* Header */}
         <Card>
           <CardContent className="p-8">
-            <h1 className="text-3xl font-bold">{repoData?.name}</h1>
-            <p className="text-gray-600 mt-2">
+            <h1 className="text-3xl font-bold mb-2">{repoData?.name}</h1>
+            <p className="text-gray-600">
               {repoData?.description || "No description"}
             </p>
           </CardContent>
         </Card>
 
-        {/* GitHub Meta */}
-        <Card>
-          <CardContent className="p-6 grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="flex items-center gap-2">
-              <Star className="w-4 h-4 text-yellow-500" />
-              {repoData?.stars ?? 0}
-            </div>
-            <div className="flex items-center gap-2">
-              <GitFork className="w-4 h-4 text-blue-500" />
-              {repoData?.forks ?? 0}
-            </div>
-            {repoData?.language && (
-              <div className="flex items-center gap-2">
-                <Code className="w-4 h-4 text-emerald-600" />
-                {repoData.language}
+        {/* Error Message */}
+        {error && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-6">
+              <p className="text-red-800">{error}</p>
+            </CardContent>
+          </Card>
+        )}
+        {/* Analysis Cards Grid */}
+        {scanResults && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Code Smells Card */}
+            <AnalysisCard
+              title="Code Smells"
+              icon={<Code className="w-6 h-6" />}
+              count={scanResults.statistics?.totalSmells || 0}
+              breakdown={[
+                {
+                  label: "High",
+                  value: scanResults.statistics?.smellsBySeverity?.high || 0,
+                  color: "text-red-600",
+                },
+                {
+                  label: "Medium",
+                  value: scanResults.statistics?.smellsBySeverity?.medium || 0,
+                  color: "text-orange-600",
+                },
+                {
+                  label: "Low",
+                  value: scanResults.statistics?.smellsBySeverity?.low || 0,
+                  color: "text-yellow-600",
+                },
+              ]}
+              onClick={() =>
+                router.push(`/repo/${owner}/${repo}/ai/code-smells`)
+              }
+            />
+
+            {/* Bugs & Reliability Card */}
+            <AnalysisCard
+              title="Bugs & Reliability"
+              icon={<AlertTriangle className="w-6 h-6" />}
+              count={
+                scanResults.smells?.filter((s) => s.category === "reliability")
+                  .length || 0
+              }
+              breakdown={[
+                {
+                  label: "Async Issues",
+                  value:
+                    scanResults.smells?.filter(
+                      (s) => s.id === "ASYNC_NO_TRY_CATCH",
+                    ).length || 0,
+                  color: "text-red-600",
+                },
+                {
+                  label: "Error Handling",
+                  value:
+                    scanResults.smells?.filter(
+                      (s) => s.category === "reliability",
+                    ).length || 0,
+                  color: "text-orange-600",
+                },
+              ]}
+              onClick={() => router.push(`/repo/${owner}/${repo}/ai/bugs`)}
+            />
+
+            {/* Security & Performance Card */}
+            <AnalysisCard
+              title="Security & Performance"
+              icon={<Lock className="w-6 h-6" />}
+              count={
+                scanResults.smells?.filter((s) =>
+                  ["security", "performance"].includes(s.category),
+                ).length || 0
+              }
+              breakdown={[
+                {
+                  label: "Security",
+                  value:
+                    scanResults.smells?.filter((s) => s.category === "security")
+                      .length || 0,
+                  color: "text-red-600",
+                },
+                {
+                  label: "Performance",
+                  value:
+                    scanResults.smells?.filter(
+                      (s) => s.category === "performance",
+                    ).length || 0,
+                  color: "text-orange-600",
+                },
+              ]}
+              onClick={() => router.push(`/repo/${owner}/${repo}/ai/security`)}
+            />
+
+            {/* README Generator Card */}
+            <AnalysisCard
+              title="README Generator"
+              icon={<FileText className="w-6 h-6" />}
+              count={scanResults.statistics?.filesAnalyzed || 0}
+              subtitle="files analyzed"
+              onClick={() => router.push(`/repo/${owner}/${repo}/ai/readme`)}
+            />
+          </div>
+        )}
+
+        {/* Health Score Summary */}
+        {scanResults?.statistics && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Scan Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-emerald-600">
+                  {scanResults.statistics.filesAnalyzed}
+                </div>
+                <div className="text-sm text-gray-500">Files Analyzed</div>
               </div>
-            )}
-            {repoData?.updatedAt && (
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                {new Date(repoData.updatedAt).toLocaleDateString()}
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">
+                  {scanResults.statistics.totalSmells}
+                </div>
+                <div className="text-sm text-gray-500">Total Issues</div>
               </div>
-            )}
-            {repoData?.url && (
-              <a
-                href={repoData.url}
-                target="_blank"
-                className="flex items-center gap-2 text-emerald-600"
-              >
-                <ExternalLink className="w-4 h-4" />
-                GitHub
-              </a>
-            )}
-          </CardContent>
-        </Card>
-            {/*scores */}
-             {Object.keys(scores).length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {Object.entries(scores).map(([k, v]) => (
-              <Card key={k}>
-                <CardContent className="p-6 text-center">
-                  <div className="text-2xl font-bold">{v}/10</div>
-                  <div className="text-sm text-gray-500">
-                    {k.replace(/([A-Z])/g, " $1")}
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">
+                  {scanResults.statistics.smellsBySeverity?.high || 0}
+                </div>
+                <div className="text-sm text-gray-500">Critical</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  {scanResults.statistics.averageComplexity || 0}
+                </div>
+                <div className="text-sm text-gray-500">Avg Complexity</div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </Layout>
+  );
+}
+
+function AnalysisCard({ title, icon, count, subtitle, breakdown, onClick }) {
+  return (
+    <Card
+      className="cursor-pointer hover:shadow-lg transition-shadow"
+      onClick={onClick}
+    >
+      <CardContent className="p-6">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="p-2 bg-gray-100 rounded-lg">{icon}</div>
+          <div>
+            <h3 className="font-semibold text-lg">{title}</h3>
+            {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
+          </div>
+        </div>
+
+        <div className="text-3xl font-bold mb-4">{count}</div>
+
+        {breakdown && (
+          <div className="space-y-2">
+            {breakdown.map((item, i) => (
+              <div key={i} className="flex justify-between text-sm">
+                <span className="text-gray-600">{item.label}</span>
+                <span className={`font-semibold ${item.color}`}>
+                  {item.value}
+                </span>
+              </div>
             ))}
           </div>
         )}
-        {/* AI Sections (only if available) */}
-    {radarData && (
-  <Card>
-    <CardHeader>
-      <CardTitle className="flex gap-2 items-center">
-        <TrendingUp /> Project Health
-      </CardTitle>
-    </CardHeader>
 
-    <CardContent>
-      {/* Responsive container */}
-      <div className="relative h-56 sm:h-64 md:h-72 lg:h-80 xl:h-96">
-        <Radar
-          data={radarData}
-          options={{
-            responsive: true,
-            maintainAspectRatio: false,
-          }}
-        />
-      </div>
-    </CardContent>
-  </Card>
-)}
-
-            {/* Strengths */}
-{sections?.strengths?.length > 0 && (
-  <Card>
-    <CardHeader>
-      <CardTitle>Strengths</CardTitle>
-    </CardHeader>
-    <CardContent className="space-y-3">
-      {sections.strengths.map((item, i) => (
-        <div key={i} className="p-3 rounded bg-emerald-50">
-          <p className="text-sm text-gray-800">
-            {item.description}
-          </p>
+        <div className="mt-4 text-emerald-600 text-sm font-semibold">
+          View Details →
         </div>
-      ))}
-    </CardContent>
-  </Card>
-)}
-{/* Critical Gaps */}
-{sections?.criticalGaps?.length > 0 && (
-  <Card>
-    <CardHeader>
-      <CardTitle className="text-red-600">
-        Critical Gaps Blocking Production
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="space-y-3">
-      {sections.criticalGaps.map((item, i) => (
-        <div key={i} className="p-3 rounded bg-red-50">
-          <p className="text-sm text-gray-800">
-            {item.description}
-          </p>
-        </div>
-      ))}
-    </CardContent>
-  </Card>
-)}
-
-{/* 48 Hour Fix Plan */}
-{sections?.fixPlan48h?.length > 0 && (
-  <Card>
-    <CardHeader>
-      <CardTitle>48-Hour Improvement Plan</CardTitle>
-    </CardHeader>
-    <CardContent className="space-y-2">
-      {sections.fixPlan48h
-        .filter(item => item.goal)
-        .map((item, i) => (
-          <div key={i} className="text-sm text-gray-700">
-            • {item.goal.replace(/^\*\s*/, "")}
-          </div>
-        ))}
-    </CardContent>
-  </Card>
-)}
-
-{/* Career Impact */}
-{sections?.careerImpact && (
-  <Card>
-    <CardHeader>
-      <CardTitle>Career Impact</CardTitle>
-    </CardHeader>
-    <CardContent className="text-gray-700 whitespace-pre-line">
-      {sections.careerImpact}
-    </CardContent>
-  </Card>
-)}
-        
-      </div>
-    </Layout>
+      </CardContent>
+    </Card>
   );
 }
