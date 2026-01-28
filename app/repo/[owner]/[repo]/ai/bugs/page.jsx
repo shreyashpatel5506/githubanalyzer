@@ -165,9 +165,7 @@ export default function BugsPage() {
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-6">
             <p className="text-blue-800 text-sm">
-              <strong>Reliability Issues</strong> include: async/await without
-              try-catch, unhandled promise rejections, missing error handlers,
-              and improper exception handling.
+              <strong>Detected Issues:</strong> These reliability issues (async/await usage, error handling) are detected directly from your code patterns.
             </p>
           </CardContent>
         </Card>
@@ -177,7 +175,7 @@ export default function BugsPage() {
           <Card className="border-red-200">
             <CardHeader className="bg-red-50">
               <CardTitle className="text-red-700">
-                Critical Bugs ({highBugs.length})
+                Critical Issues ({highBugs.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -195,7 +193,7 @@ export default function BugsPage() {
           <Card className="border-orange-200">
             <CardHeader className="bg-orange-50">
               <CardTitle className="text-orange-700">
-                Medium Bugs ({mediumBugs.length})
+                Medium Issues ({mediumBugs.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -213,7 +211,7 @@ export default function BugsPage() {
           <Card className="border-yellow-200">
             <CardHeader className="bg-yellow-50">
               <CardTitle className="text-yellow-700">
-                Low Bugs ({lowBugs.length})
+                Low Issues ({lowBugs.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -288,10 +286,11 @@ function BugItem({ bug }) {
             href={bug.githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-shrink-0 p-2 hover:bg-white rounded transition-colors"
-            title="View on GitHub"
+            className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors shadow-sm"
+            title="View exact line in GitHub"
           >
-            <ExternalLink className="w-5 h-5 text-blue-600" />
+            <ExternalLink className="w-4 h-4" />
+            View in Repo
           </a>
         )}
       </div>

@@ -5,6 +5,8 @@
  * Resolves branch → commit SHA → tree SHA.
  */
 
+import { getCachedTree, setCachedTree } from "../repositoryCache.js";
+
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
 
@@ -43,6 +45,13 @@ export async function fetchRepositoryTree(
       stats: { total: 0, blobs: 0, trees: 0 },
       error: "Owner, repo, and commitSha are required",
     };
+  }
+
+  // Check cache first (Commit SHA is immutable)
+  const cached = getCachedTree(owner, repo, commitSha);
+  if (cached) {
+    console.log(`[TREE CACHE HIT] ${owner}/${repo} @ ${commitSha}`);
+    return cached;
   }
 
   try {
@@ -92,7 +101,7 @@ export async function fetchRepositoryTree(
 
     // Normalize to file objects
     const files = rawItems
-      .filter((item) => item.type === "blob") // Only files
+      .filter((item) => item.type === "blob" || item.type === "tree") // Include files and directories
       .map((item) => ({
         path: item.path,
         type: item.type,
@@ -107,7 +116,12 @@ export async function fetchRepositoryTree(
       totalSize: files.reduce((sum, f) => sum + (f.size || 0), 0),
     };
 
-    return { files, stats };
+    const result = { files, stats };
+    
+    // Cache the result
+    setCachedTree(owner, repo, commitSha, result);
+
+    return result;
   } catch (error) {
     return {
       files: [],

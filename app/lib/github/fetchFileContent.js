@@ -1,6 +1,8 @@
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
 
+import { getCachedFile, setCachedFile } from "../repositoryCache.js";
+
 function buildHeaders(token = null) {
   const headers = {
     Accept: "application/vnd.github+json",
@@ -100,13 +102,15 @@ export async function fetchFileContent(
   }
 }
 
+
+
 /**
  * Fetch multiple files in parallel
  *
  * @async
  * @param {string} owner - Repository owner
  * @param {string} repo - Repository name
- * @param {Array<string>} filePaths - Array of file paths
+ * @param {Array<string|Object>} files - Array of file paths or file objects {path, sha}
  * @param {string} branch - Branch name
  * @param {string|null} token - Optional GitHub token
  * @returns {Promise<Array<Object>>} Array of file content objects
@@ -114,17 +118,52 @@ export async function fetchFileContent(
 export async function fetchFileContentBatch(
   owner,
   repo,
-  filePaths,
+  files,
   branch,
   token = null,
 ) {
-  if (!Array.isArray(filePaths)) {
+  if (!Array.isArray(files)) {
     return [];
   }
 
-  const promises = filePaths.map((filePath) =>
-    fetchFileContent(owner, repo, filePath, branch, token),
-  );
+  const results = [];
+  const BATCH_SIZE = 5; // Conservative limit to avoid abusive rate limiting
 
-  return Promise.all(promises);
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batch = files.slice(i, i + BATCH_SIZE);
+    
+    const batchPromises = batch.map(async (file) => {
+      const path = typeof file === 'string' ? file : file.path;
+      const sha = typeof file === 'string' ? null : file.sha;
+
+      // 1. Check Cache (if SHA is known)
+      if (sha) {
+        const cached = getCachedFile(owner, repo, sha);
+        if (cached) {
+          return cached;
+        }
+      }
+
+      // 2. Fetch from GitHub
+      const result = await fetchFileContent(owner, repo, path, branch, token);
+
+      // 3. Cache Result (if successful)
+      if (!result.error && result.sha) {
+        setCachedFile(owner, repo, result.sha, result);
+      } else if (sha && !result.error && result.content) {
+         // Fallback: manually cache using the known SHA if fetch didn't return it
+         // (though fetchFileContent usually returns SHA found in response or null)
+         const resultWithSha = { ...result, sha };
+         setCachedFile(owner, repo, sha, resultWithSha); 
+      }
+
+      return result;
+    });
+
+    // Wait for batch to complete
+    const batchResults = await Promise.all(batchPromises);
+    results.push(...batchResults);
+  }
+
+  return results;
 }

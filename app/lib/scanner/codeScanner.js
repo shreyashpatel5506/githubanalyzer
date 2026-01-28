@@ -93,7 +93,7 @@ export async function scanRepository(owner, repo, options = {}) {
     const fileContents = await fetchFileContentBatch(
       owner,
       repo,
-      scannable.map((f) => f.path),
+      scannable, // Pass full objects to enable SHA-based caching
       branchRes.branch,
       token,
     );

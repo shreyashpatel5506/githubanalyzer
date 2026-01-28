@@ -269,16 +269,17 @@ function SmellItem({ smell }) {
           </div>
         </div>
 
-        {/* GitHub Link */}
+        {/* GitHub Link Button */}
         {smell.githubUrl && (
           <a
             href={smell.githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-shrink-0 p-2 hover:bg-white rounded transition-colors"
-            title="View on GitHub"
+            className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors shadow-sm"
+            title="View exact line in GitHub"
           >
-            <ExternalLink className="w-5 h-5 text-blue-600" />
+            <ExternalLink className="w-4 h-4" />
+            View in Repo
           </a>
         )}
       </div>

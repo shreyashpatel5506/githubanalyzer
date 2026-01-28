@@ -13,6 +13,8 @@ import { collectStructure } from "@/app/lib/readme/collectStructure";
 import { collectPackage } from "@/app/lib/readme/collectPackage";
 import { collectAssets } from "@/app/lib/readme/collectAssets";
 import { buildSnapshot } from "@/app/lib/readme/buildSnapshot";
+import { scanRepository } from "@/app/lib/scanner/codeScanner.js";
+import { getOrStartScan } from "@/app/lib/repositoryCache.js";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
@@ -28,161 +30,128 @@ function today() {
 
 /* ================== PROMPT ================== */
 
-function buildReadmePrompt(snapshot) {
-  // Helper: infer features from dependencies, folders, and scripts
-  const inferredFeatures = [];
+function buildReadmePrompt(scanResult) {
+  return `You are a senior open-source maintainer and technical writer.
 
-  // Infer from dependencies
-  if (snapshot.techStack.dependencies.length > 0) {
-    const deps = snapshot.techStack.dependencies.join(" ").toLowerCase();
-    if (deps.includes("react")) inferredFeatures.push("React-based UI");
-    if (deps.includes("express")) inferredFeatures.push("Express server");
-    if (deps.includes("mongodb")) inferredFeatures.push("MongoDB integration");
-    if (deps.includes("postgres") || deps.includes("postgresql"))
-      inferredFeatures.push("PostgreSQL database");
-    if (deps.includes("axios")) inferredFeatures.push("HTTP client");
-    if (deps.includes("jwt")) inferredFeatures.push("JWT authentication");
-    if (
-      deps.includes("tailwind") ||
-      deps.includes("bootstrap") ||
-      deps.includes("styled")
-    )
-      inferredFeatures.push("Styling solution");
-  }
+Your task is to generate a professional GitHub README.md
+using ONLY the provided repository analysis data.
 
-  // Infer from folder structure
-  if (snapshot.structure.length > 0) {
-    const folders = snapshot.structure.join(" ").toLowerCase();
-    if (folders.includes("test")) inferredFeatures.push("Test suite");
-    if (folders.includes("docker")) inferredFeatures.push("Docker support");
-    if (folders.includes("api")) inferredFeatures.push("API endpoints");
-    if (folders.includes("components"))
-      inferredFeatures.push("Reusable components");
-    if (folders.includes("middleware"))
-      inferredFeatures.push("Middleware architecture");
-  }
+════════════════════════════════════
+STRICT NON-NEGOTIABLE RULES
+════════════════════════════════════
+- Use ONLY the provided JSON data
+- DO NOT invent features
+- DO NOT guess setup steps
+- DO NOT assume APIs or commands
+- DO NOT use marketing language
+- DO NOT add emojis
+- DO NOT speculate
+- Output GitHub-flavored Markdown only
+- Accuracy > Completeness
 
-  // Infer from scripts
-  const scriptKeys = Object.keys(snapshot.scripts).join(" ").toLowerCase();
-  if (scriptKeys.includes("dev")) inferredFeatures.push("Development mode");
-  if (scriptKeys.includes("build")) inferredFeatures.push("Production build");
-  if (scriptKeys.includes("test")) inferredFeatures.push("Automated tests");
-  if (scriptKeys.includes("lint")) inferredFeatures.push("Code linting");
-  if (scriptKeys.includes("deploy"))
-    inferredFeatures.push("Deployment automation");
+If something is unclear or missing, explicitly state that.
 
-  const featuresSection =
-    inferredFeatures.length > 0
-      ? inferredFeatures.map((f) => `- ${f}`).join("\n")
-      : "- Feature detection requires code analysis";
+════════════════════════════════════
+SOURCE OF TRUTH (DO NOT IGNORE)
+════════════════════════════════════
+The following JSON represents:
+- All scanned files
+- All detected code smells
+- All known APIs and UI routes
+- All metrics and statistics
 
-  const depsStr =
-    snapshot.techStack.dependencies.length > 0
-      ? snapshot.techStack.dependencies.map((d) => `- ${d}`).join("\n")
-      : "- No external dependencies detected";
+${JSON.stringify(scanResult, null, 2)}
 
-  const devDepsStr =
-    snapshot.techStack.devDependencies.length > 0
-      ? snapshot.techStack.devDependencies.map((d) => `- ${d}`).join("\n")
-      : "- No dev dependencies";
+════════════════════════════════════
+README STRUCTURE (EXACT ORDER)
+════════════════════════════════════
 
-  const scriptsStr =
-    Object.keys(snapshot.scripts).length > 0
-      ? Object.entries(snapshot.scripts)
-          .slice(0, 8)
-          .map(([name, cmd]) => `- npm run ${name} - ${cmd}`)
-          .join("\n")
-      : "No scripts defined";
+# 1. Project Title
+Use:
+- metadata.name
 
-  const structureStr =
-    snapshot.structure.length > 0
-      ? snapshot.structure.map((f) => f).join("\n")
-      : "Folder structure was not detectable from the repository.";
+# 2. Overview
+Write a concise technical overview using:
+- metadata.description
+- detected application purpose
+- detected frontend + backend structure
 
-  const assetsStr =
-    snapshot.assets.length > 0
-      ? snapshot.assets.map((a) => `- ${a}`).join("\n")
-      : "No screenshot or asset directories detected.";
+Do NOT exaggerate.
+Do NOT market.
 
-  return `You are a senior open-source maintainer generating a professional GitHub README.
+# 3. Core Features
+Derive features ONLY from:
+- app/api routes
+- app/repo/[owner]/[repo] pages
+- detected UI flows
+- detected AI analysis endpoints
 
-STRICT RULES (NON-NEGOTIABLE):
-- Use ONLY the provided repository snapshot data.
-- DO NOT invent features, commands, APIs, or scripts not in the snapshot.
-- DO NOT assume technologies or patterns without explicit code signals.
-- Output VALID GitHub-flavored Markdown ONLY.
-- No emojis, marketing language, hype, or speculation.
-- Be technical, accurate, and developer-focused.
-- If data is missing, state that it is not available rather than inventing it.
+List features like:
+- Repository analysis
+- Code smell detection
+- Bug & reliability analysis
+- Security checks
+- README generation
+ONLY if supported by data.
 
-REPOSITORY SNAPSHOT (SOURCE OF TRUTH):
-${JSON.stringify(snapshot, null, 2)}
+# 4. Architecture Overview
+Explain:
+- Frontend (Next.js app router structure)
+- Backend API routes
+- AI analysis pipeline
+- Scan → Snapshot → Reuse model
 
-INFERRED FEATURES (from code signals):
-${featuresSection}
+Use file paths as evidence.
 
-GENERATE A README.md WITH THESE SECTIONS IN ORDER:
+# 5. Tech Stack
+Use ONLY:
+- metadata.language
+- detected dependencies (from files if present)
+- framework usage inferred from file structure
 
-# ${snapshot.name}
-Repository: ${snapshot.owner}/${snapshot.name}
+If something is unknown, say so.
 
-## Overview
-${snapshot.description || "A repository without an explicit description. Review the code to understand its purpose."}
+# 6. Code Quality & Analysis
+Summarize:
+- statistics.filesAnalyzed
+- statistics.totalSmells
+- smellsBySeverity
+- averageComplexity
 
-Stats: ${snapshot.stars} stars | ${snapshot.forks} forks | Language: ${snapshot.language || "Not specified"}
+Mention that detailed results are available in the UI.
 
-## Key Features
-Based on code analysis:
-${featuresSection}
+# 7. Repository Structure
+Summarize key directories:
+- app/
+- app/api/
+- app/components/
+- app/lib/
+Explain their purpose briefly.
 
-## Tech Stack
-**Language:** ${snapshot.language || "Not specified"}
+# 8. Setup & Development
+Include steps ONLY if they can be safely inferred.
+If not, say:
+"Setup instructions are not explicitly defined in the repository."
 
-**Dependencies:**
-${depsStr}
+# 9. Limitations
+Mention:
+- Rate limits
+- Scope of analysis
+- Supported languages (JavaScript / Web)
 
-**Dev Dependencies:**
-${devDepsStr}
+# 10. Contribution
+Provide a minimal, neutral contribution guideline.
 
-**Topics:** ${snapshot.topics.length > 0 ? snapshot.topics.join(", ") : "Not specified"}
+════════════════════════════════════
+FINAL CHECK
+════════════════════════════════════
+- No assumptions
+- No hallucinations
+- Markdown only
+- Developer-first tone
+- Trustworthy and factual
 
-## Setup Instructions
-${
-  Object.keys(snapshot.scripts).length > 0
-    ? `### Available Scripts
-
-${scriptsStr}
-
-### Installation & Running
-If a package.json is detected, install dependencies and run the project:
-\`\`\`bash
-npm install
-npm start  # or appropriate start script
-\`\`\``
-    : "Setup instructions are not clearly defined in the repository. Review package.json or build configuration files for specific instructions."
-}
-
-## Folder Structure
-\`\`\`
-${structureStr}
-\`\`\`
-
-## Assets & Visuals
-${assetsStr}
-
-## Contributing
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## License
-Check the LICENSE file for details.
-
----
-
-**Note:** This README was generated from repository metadata and code signals. For detailed setup or advanced features, review the documentation or code comments.
+Generate the README now.
 `;
 }
 
@@ -261,6 +230,17 @@ export async function POST(req) {
       headers,
     }).catch(() => []);
 
+    // 🔬 INTELLIGENCE: Fetch comprehensive code analysis (Cached & Coalesced)
+    // This ensures README uses the exact same data as the "Code Smells" page.
+    const analysis = await getOrStartScan(owner, repo, defaultBranch, async () => {
+      // Note: We use the same token and plan as the user's session
+      return await scanRepository(owner, repo, {
+        branch: defaultBranch,
+        token: githubToken,
+        planTier: plan,
+      });
+    });
+
     // Fallback to provided snapshot if API fails (respects user-provided data)
     const meta = apiMeta || {
       name: repoSnapshot?.name || repo,
@@ -281,7 +261,24 @@ export async function POST(req) {
       assets,
     });
 
-    const prompt = buildReadmePrompt(snapshot);
+    // 📦 MERGE: Combine Metadata (Snapshot) + Intelligence (Analysis)
+    const promptContext = {
+      metadata: {
+        ...snapshot, // name, description, techStack, scripts
+        defaultBranch,
+      },
+      statistics: analysis?.statistics || { filesAnalyzed: 0, totalSmells: 0 },
+      smells: analysis?.smells || [],
+      files: analysis?.files || [], // Actual analyzed files
+      structure: snapshot.structure, // Folder structure
+      // scanResult might contain errors, but we proceed with available data
+      analysisParams: {
+        plan,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    const prompt = buildReadmePrompt(promptContext);
     const readmeContent = await runAI(prompt);
 
     if (!readmeContent || readmeContent.length < 80) {
@@ -303,9 +300,19 @@ export async function POST(req) {
 
     return NextResponse.json({
       success: true,
-      readme: readmeContent,
-      committed: commitToRepo,
-      snapshotUsed: snapshot,
+      data: {
+        markdown: readmeContent,
+        scan: {
+          filesAnalyzed: promptContext.files?.length || 0,
+          totalSmells: promptContext.smells?.length || 0,
+          featuresDetected: snapshot.structure?.length || 0
+        },
+        snapshotUsed: snapshot,
+        analysisUsed: {
+          files: promptContext.files.length,
+          smells: promptContext.smells.length
+        }
+      }
     });
   } catch (err) {
     console.error("README GEN ERROR:", err);

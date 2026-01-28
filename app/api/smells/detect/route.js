@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { scanRepository } from "@/app/lib/scanner/codeScanner.js";
+import { getOrStartScan } from "@/app/lib/repositoryCache.js";
 
 /**
  * POST /api/smells/detect
@@ -9,6 +10,7 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const { owner, repo, branch, token, planTier = "free" } = body;
+
 
     // Validate required fields
     if (!owner) {
@@ -42,11 +44,13 @@ export async function POST(req) {
       );
     }
 
-    // Run scan
-    const scanResults = await scanRepository(owner, repo, {
-      branch: branch || null,
-      token: token || null,
-      planTier,
+    // Use request coalescing to prevent duplicate scans
+    const scanResults = await getOrStartScan(owner, repo, branch || 'default', async () => {
+      return await scanRepository(owner, repo, {
+        branch: branch || null,
+        token: token || null,
+        planTier,
+      });
     });
 
     // Check for errors
@@ -114,11 +118,13 @@ export async function GET(req) {
       );
     }
 
-    // Run scan
-    const scanResults = await scanRepository(owner, repo, {
-      branch: branch || null,
-      token: token || null,
-      planTier,
+    // Use request coalescing to prevent duplicate scans
+    const scanResults = await getOrStartScan(owner, repo, branch || 'default', async () => {
+      return await scanRepository(owner, repo, {
+        branch: branch || null,
+        token: token || null,
+        planTier,
+      });
     });
 
     // Check for errors

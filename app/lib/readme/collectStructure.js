@@ -1,4 +1,5 @@
-import { GITHUB_API } from "../github/constants";
+import { resolveBranchSha } from "../github/resolveBranch.js";
+import { fetchRepositoryTree } from "../github/fetchRepositoryTree.js";
 
 const IGNORE = ["node_modules", ".git", "dist", "build", ".next", "coverage"];
 
@@ -11,18 +12,18 @@ export async function collectStructure({ owner, repo, branch, headers }) {
   }
 
   try {
-    const res = await fetch(
-      `${GITHUB_API}/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
-      { headers },
-    );
+    const authHeader = headers?.Authorization || headers?.authorization;
+    const token = authHeader ? authHeader.replace("Bearer ", "") : null;
 
-    if (!res.ok) return [];
+    // Resolve branch to SHA
+    const branchRes = await resolveBranchSha(owner, repo, branch, token);
+    if (branchRes.error) return [];
 
-    const data = await res.json();
+    // Fetch tree (cached by SHA)
+    const treeRes = await fetchRepositoryTree(owner, repo, branchRes.sha, token);
+    if (treeRes.error) return [];
 
-    if (!data.tree || !Array.isArray(data.tree)) return [];
-
-    return data.tree
+    return treeRes.files
       .filter((item) => item.type === "tree")
       .map((item) => item.path)
       .filter((path) => !IGNORE.some((i) => path.startsWith(i)))

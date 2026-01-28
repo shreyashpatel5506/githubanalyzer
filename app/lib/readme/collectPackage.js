@@ -1,18 +1,30 @@
-import { GITHUB_API } from "../github/constants";
+import { fetchFileContent } from "../github/fetchFileContent.js";
+import { resolveBranchSha } from "../github/resolveBranch.js";
 
 export async function collectPackage({ owner, repo, headers }) {
   try {
-    const res = await fetch(
-      `${GITHUB_API}/repos/${owner}/${repo}/contents/package.json`,
-      { headers },
-    );
+    const authHeader = headers?.Authorization || headers?.authorization;
+    const token = authHeader ? authHeader.replace("Bearer ", "") : null;
 
-    if (!res.ok) return null;
+    // We need a branch to fetch content. 
+    // Optimization: If we already knew the default branch or SHA, we should pass it. 
+    // For now, let's resolve it or default. 
+    // Actually, fetchFileContent needs a branch/ref.
+    
+    // Quick resolve (cached if possible by resolveBranch logic if we add cache there, 
+    // but resolveBranch itself isn't cached yet. 
+    // However, `fetchFileContent` uses `ref`.
+    
+    // Let's first resolve the branch to get the head SHA, 
+    // then fetchFileContent will cache the file by its SHA.
+    const branchRes = await resolveBranchSha(owner, repo, null, token);
+    const branch = branchRes.branch || "main";
 
-    const data = await res.json();
-    const pkg = JSON.parse(
-      Buffer.from(data.content, "base64").toString("utf8"),
-    );
+    const file = await fetchFileContent(owner, repo, "package.json", branch, token);
+
+    if (file.error || !file.content) return null;
+
+    const pkg = JSON.parse(file.content);
 
     return {
       name: pkg.name || repo,

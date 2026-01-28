@@ -171,11 +171,10 @@ export default function SecurityPage() {
           <Card className="border-red-200 bg-red-50">
             <CardContent className="p-6">
               <p className="text-red-800 text-sm font-semibold mb-1">
-                Security Issues
+                Critical Security Issues
               </p>
               <p className="text-red-700 text-xs">
-                Vulnerabilities, unsafe APIs, injection risks, and insecure
-                patterns.
+                Showing only high-severity vulnerabilities that require immediate attention.
               </p>
             </CardContent>
           </Card>
@@ -185,16 +184,16 @@ export default function SecurityPage() {
                 Performance Issues
               </p>
               <p className="text-orange-700 text-xs">
-                Memory leaks, unoptimized renders, blocking operations.
+                Memory leaks and blocking operations.
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Security Section */}
+        {/* Security Section (High Only) */}
         {securityIssues.length > 0 && (
           <>
-            {highSecurity.length > 0 && (
+            {highSecurity.length > 0 ? (
               <Card className="border-red-200">
                 <CardHeader className="bg-red-50">
                   <CardTitle className="text-red-700">
@@ -209,38 +208,15 @@ export default function SecurityPage() {
                   </div>
                 </CardContent>
               </Card>
-            )}
-
-            {mediumSecurity.length > 0 && (
-              <Card className="border-orange-200">
-                <CardHeader className="bg-orange-50">
-                  <CardTitle className="text-orange-700">
-                    Medium Security ({mediumSecurity.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="space-y-1">
-                    {mediumSecurity.map((issue, i) => (
-                      <IssueItem key={i} issue={issue} />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {lowSecurity.length > 0 && (
-              <Card className="border-yellow-200">
-                <CardHeader className="bg-yellow-50">
-                  <CardTitle className="text-yellow-700">
-                    Low Security ({lowSecurity.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="space-y-1">
-                    {lowSecurity.map((issue, i) => (
-                      <IssueItem key={i} issue={issue} />
-                    ))}
-                  </div>
+            ) : (
+              <Card className="border-emerald-200 bg-emerald-50">
+                <CardContent className="p-8 text-center">
+                  <p className="text-emerald-800 font-semibold">
+                    ✓ No Verified Critical Vulnerabilities
+                  </p>
+                  <p className="text-emerald-700 text-sm mt-2">
+                    No high-severity security issues were detected. Lower severity items may exist but are hidden in this critical view.
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -331,10 +307,11 @@ function IssueItem({ issue }) {
             href={issue.githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-shrink-0 p-2 hover:bg-white rounded transition-colors"
-            title="View on GitHub"
+            className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors shadow-sm"
+            title="View exact line in GitHub"
           >
-            <ExternalLink className="w-5 h-5 text-blue-600" />
+            <ExternalLink className="w-4 h-4" />
+            View in Repo
           </a>
         )}
       </div>
