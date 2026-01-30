@@ -171,7 +171,7 @@ export async function scanRepository(owner, repo, options = {}) {
  * Build GitHub blob URL with line numbers
  */
 function buildGitHubUrl(owner, repo, branch, path, lineStart, lineEnd) {
-  const baseUrl = `https://github.com/${owner}/${repo}/blob/${branch}/${path}`;
+  const baseUrl = `https://github.com/${owner}/${repo}/tree/${branch}/${path}`;
   if (!lineStart) return baseUrl;
   return `${baseUrl}#L${lineStart}${lineEnd ? `-L${lineEnd}` : ""}`;
 }

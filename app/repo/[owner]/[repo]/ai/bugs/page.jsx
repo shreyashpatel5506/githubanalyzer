@@ -86,6 +86,7 @@ export default function BugsPage() {
 
         const scanData = await scanRes.json();
         if (scanData.success) {
+          console.log(scanData.data);
           setScanResults(scanData.data);
         } else {
           setError(scanData.error || "Scan failed");

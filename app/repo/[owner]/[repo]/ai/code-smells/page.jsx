@@ -89,6 +89,7 @@ export default function CodeSmellsPage() {
         const scanData = await scanRes.json();
         if (scanData.success) {
           setScanResults(scanData.data);
+          console.log(scanData.data);
         } else {
           setError(scanData.error || "Scan failed");
         }
@@ -115,11 +116,11 @@ export default function CodeSmellsPage() {
 
   // Group smells by severity
   const highSmells =
-    scanResults?.smells?.filter((s) => s.severity === "HIGH") || [];
+    scanResults?.smells?.filter((s) => s.severity === "high") || [];
   const mediumSmells =
-    scanResults?.smells?.filter((s) => s.severity === "MEDIUM") || [];
+    scanResults?.smells?.filter((s) => s.severity === "medium") || [];
   const lowSmells =
-    scanResults?.smells?.filter((s) => s.severity === "LOW") || [];
+    scanResults?.smells?.filter((s) => s.severity === "low") || [];
 
   return (
     <Layout>
