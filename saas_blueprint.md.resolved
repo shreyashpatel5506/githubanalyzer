@@ -1,0 +1,400 @@
+# SaaS Conversion Blueprint: GitProfileAI
+
+**Current Status:** Prototype (MVP)
+**Target Status:** Production-Grade SaaS (Scale: 100k users)
+**Stack Target:** Next.js + Supabase (Postgres) + Clerk (Auth) + GitHub API (Free)
+**Estimated Migration Time:** 2 Weeks
+
+---
+
+## 🎯 GOAL
+Convert this project into a **production-grade SaaS platform** utilizing the Free Tier of GitHub API while surviving massive scale.
+
+---
+
+## 1️⃣ COMPLETE REPOSITORY AUDIT
+
+### 📂 Folder Structure Analysis
+
+#### `app/api` (Backend Routes)
+| File / Folder | Current Logic | Risk / Problem | Action |
+| :--- | :--- | :--- | :--- |
+| `app/api/analysis/route.js` | Receives repo details, calls OpenAI directly, waits for response. | **CRITICAL**: Synchronous execution triggers Vercel 10s timeout (Hobby) / 60s (Pro). No valid rate limiting. | **SPLIT**: Convert to "Enqueue" endpoint. Returns `scan_id`. Moves logic to Worker. |
+| `app/api/auth/[...nextauth]` | NextAuth.js configuration | **MAINTENANCE**: Self-hosted auth session management is brittle at scale. | **DELETE**: Replace with Clerk. |
+| `app/api/readme/generate` | Generates README via AI | **TIMEOUT**: Similar to analysis, AI generation exceeds HTTP timeouts. | **MODIFY**: Move to Edge Function (Streaming response) or Background Job. |
+| `app/api/github/*` | Fetches GitHub data | **RATE LIMIT**: No centralized caching or throttling. | **MODIFY**: Route all GitHub calls through a new `Lib/GitHubService` with Redis caching. |
+| `app/models/user.js` | Mongoose Schema | **COUPLING**: Mixes Auth (`githubId`) and App Data (`plan`). | **MIGRATE**: Split. Auth -> Clerk. Data -> `public.profiles` (Supabase). |
+| `app/models/Usage.js` | Mongoose Schema | **RACE CON**: `repoScansUsed` increment is not concurrency safe. | **MIGRATE**: Supabase `usage_counters` with Atomic RLS policies. |
+| `app/lib/repositoryCache.js` | `new Map()` in-memory cache | **SERVERLESS FAIL**: Memory is wiped on every function cold start. Users will hit Rate Limits instantly. | **DELETE**: Replace with Upstash Redis or Supabase Table. |
+| `app/lib/scanner/*` | Parsing logic | **OK**: Pure functions. | **KEEP**: Move to `lib/scanner` and ensure they are side-effect free. |
+| `app/components/*` | UI Components | **OK**: Mostly presentation. | **KEEP**: Ensure they fetch data from new Supabase hooks, not internal APIs. |
+
+### 🚩 Detailed Anti-Patterns
+1.  **Stateful In-Memory Caching**:
+    -   *Found in*: `app/lib/repositoryCache.js`
+    -   *Impact*: In a serverless environment (Vercel), each request spins up a new isolated instance. The `Map()` is empty every time. You are hitting the GitHub API 100% of the time, guaranteeing a ban at 5,000 requests/hr.
+    -   *Fix*: Shared Redis Cache (Upstash) or Postgres Table.
+
+2.  **Synchronous Long-Running Tasks**:
+    -   *Found in*: `app/api/analysis/route.js`
+    -   *Impact*: Browsers and Proxies (Vercel) timeout after 10-60 seconds. AI scans often take 30-90 seconds. Verification fails.
+    -   *Fix*: Asynchronous specific "Postgres as Queue" pattern.
+
+3.  **Hardcoded Limits**:
+    -   *Found in*: `const FREE_DAILY_SCAN_LIMIT = 5`
+    -   *Impact*: Requires code deploy to change pricing.
+    -   *Fix*: Database columns `plans.limit_daily_scans`.
+
+---
+
+## 2️⃣ SAAS PRODUCT & PLAN DESIGN
+
+### 💎 Feature Gate Matrix
+
+| Feature | 🆓 Guest (No Login) | 🆓 Free (Logged In) | 💼 Pro ($19/mo) | 🚀 Pro Plus ($49/mo) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Repo Analysis** | 1 Scan / Session | 5 Scans / Day | Unlimited | Unlimited |
+| **Deep Code Smells** | ❌ | 1 / Account (Trial) | 5 / Week | Unlimited (5/Day Throttle) |
+| **AI Pull Request** | ❌ | ❌ | 15 / Month | Unlimited |
+| **History Storage** | ❌ (Ephemeral) | Current Session Only | Last 7 Days | 1 Year + Diff Dashboard |
+| **Rate Limit Priority**| Low (Shared IP) | Medium (User Token) | High (Dedicated) | Priority Queue |
+| **Support** | Community | Community | Email | Priority Email |
+
+### 🛡️ Limit Enforcement Logic
+
+#### 1. Guest (No Login)
+-   **Identifier**: IP Address + User Agent Hash.
+-   **Storage**: Redis Key `guest:${ip_hash}:count`. TTL 24h.
+-   **Limit**: 1 per 24h.
+-   **UI**: "Sign up to see more detailed analysis."
+
+#### 2. Free (Logged In)
+-   **Identifier**: `user_id` (UUID).
+-   **Storage**: Supabase Table `usage_counters`.
+-   **Logic**:
+    ```sql
+    -- Pseudo-code implementation
+    IF (usage.scan_count >= 5 AND user.plan = 'free') THEN
+      RAISE EXCEPTION 'Daily limit reached';
+    END IF;
+    ```
+-   **Reset**: Cron job `0 0 * * *` resets `scan_count = 0`.
+
+#### 3. Pro / Pro Plus
+-   **Validation**: Clerk Metadata `plan: 'pro'`.
+-   **Storage**: `usage_counters` (still tracked for audit, but not blocked).
+-   **Abuse Prevention**: Hard cap at 100/day even for Pro to prevent API key extraction scraping.
+
+---
+
+## 3️⃣ AUTH & BILLING IMPLEMENTATION (CLERK)
+
+### 🔐 Authentication Flow
+1.  **User Clicks "Sign In"**: Redirects to Clerk Hosted Page.
+2.  **Option**: "Sign in with GitHub".
+3.  **Clerk Auth**: Handles OAuth handshake. Stores `provider_token` (GitHub Access Token).
+4.  **Redirect**: Back to `/dashboard`.
+5.  **Synchronization**:
+    -   Clerk fires `user.created` webhook.
+    -   Next.js API `/api/webhooks/clerk` receives it.
+    -   Inserts row into Supabase `public.users`.
+
+### 💳 Billing Integration (Clerk + Stripe)
+-   **Setup**: Enable Clerk Billing (Stripe integration).
+-   **Products**: Create "Pro" and "Plus" products in Stripe.
+-   **Metadata**: Configure Clerk to sync `stripe_subscription_status` to User Public Metadata.
+-   **Frontend**: `useUser()` hook exposes `user.publicMetadata.plan`.
+
+### 📂 Required Environment Variables
+```bash
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+CLERK_WEBHOOK_SECRET=whsec_...
+# Syncing GitHub Tokens
+CLERK_GHA_TOKEN_ENCRYPTION_KEY=...
+```
+
+---
+
+## 4️⃣ DATABASE DESIGN (SUPABASE POSTGRES)
+
+### 🗄️ Schema Specification
+
+#### 1. `users` (Synced Profiles)
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID (PK) | Matches Clerk User ID. |
+| `email` | Text | Primary email (Unique). |
+| `full_name` | Text | Display name. |
+| `plan` | Text | 'free', 'pro', 'plus'. Default 'free'. |
+| `created_at` | Timestamptz | Signup date. |
+
+**RLS Policy**:
+-   `SELECT`: Users can see themsevles. Service Role sees all.
+-   `UPDATE`: Users can update `full_name`. Only webhook updates `plan`.
+
+#### 2. `github_identities` (Secure Token Storage)
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `user_id` | UUID (PK, FK) | Link to `users`. |
+| `github_id` | Text | GitHub numeric ID. |
+| `username` | Text | GitHub handle. |
+| `access_token` | Text (Encrypted) | OAuth token for API calls. |
+
+**RLS Policy**:
+-   `SELECT`: User can see own.
+-   `INSERT/UPDATE`: Only via Server-Side functions (never client).
+
+#### 3. `scans` (Analysis Jobs)
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID (PK) | . |
+| `user_id` | UUID (FK) | Owner. Nullable for Guests. |
+| `repo_owner` | Text | . |
+| `repo_name` | Text | . |
+| `status` | Text | 'queued', 'processing', 'completed', 'failed'. |
+| `result_summary`| JSONB | Light summary for list view. |
+| `created_at` | Timestamptz | . |
+
+**RLS Policy**:
+-   `INSERT`: Authenticated users.
+-   `SELECT`: User can see own scans.
+-   `UPDATE`: Only Service Role (Worker) can update status.
+
+#### 4. `scan_snapshots` (Heavy Data)
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `scan_id` | UUID (PK, FK) | Link to `scans`. |
+| `b_full_analysis` | JSONB | The massive AI output. |
+| `raw_file_tree` | JSONB | Cached file structure. |
+
+**RLS Policy**:
+-   `SELECT`: User can see own.
+
+#### 5. `usage_meters` (Rate Limits)
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `user_id` | UUID (PK, FK) | . |
+| `period_day` | Date | YYYY-MM-DD. |
+| `scan_count` | Int | Default 0. |
+| `deep_count` | Int | Default 0. |
+
+**RLS Policy**:
+-   `SELECT`: User can see own usage.
+-   `UPDATE`: Only Service Role (Worker) can increment.
+
+---
+
+## 5️⃣ FILE-BY-FILE MIGRATION PLAN
+
+### 🗑️ DELETIONS
+-   `app/api/auth/[...nextauth]/route.js` -> **DELETE**.
+-   `app/lib/repositoryCache.js` -> **DELETE**.
+-   `app/config/db.js` -> **DELETE**.
+-   `app/models/*` -> **DELETE**.
+
+### 🛠️ MODIFICATIONS / CREATIONS
+
+#### 1. `app/lib/supabase.ts` (NEW)
+```typescript
+import { createClient } from '@supabase/supabase-js'
+// Use Service Role for backend operations (Queue processing)
+export const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+)
+```
+
+#### 2. `app/api/webhooks/clerk/route.ts` (NEW)
+-   **Purpose**: Handle `user.created` event.
+-   **Logic**:
+    -   Verify Webhook Signature (svix).
+    -   Extract `id`, `email`, `first_name`.
+    -   `supabaseAdmin.from('users').insert(...)`.
+
+#### 3. `app/api/scan/route.ts` (REPLACE `api/analysis`)
+-   **Current**: Synchronous.
+-   **New Logic**:
+    ```typescript
+    export async function POST(req) {
+      const { userId } = auth();
+      // 1. Check Limits (Redis/DB)
+      if (await isOverLimit(userId)) return 429;
+      
+      // 2. Insert Job
+      const { data: scan } = await supabase.from('scans').insert({ 
+         status: 'queued', userId 
+      }).select().single();
+
+      // 3. Trigger Worker (Non-blocking)
+      fetch('https://proj.supabase.co/functions/v1/worker-scan', {
+        method: 'POST',
+        body: JSON.stringify({ scanId: scan.id }),
+        headers: { Authorization: `Bearer ${process.env.SUPABASE_ANON_KEY}` }
+      });
+
+      return NextResponse.json({ scanId: scan.id });
+    }
+    ```
+
+#### 4. `app/(dashboard)/repo/[id]/page.tsx` (UPDATE)
+-   **Current**: Standard render.
+-   **New Logic**:
+    -   Use polling hook `useScanStatus(scanId)`.
+    -   Show "Analyzing... (Position 2 in queue)" while Status = 'queued'.
+    -   When Status = 'completed', fetch results.
+
+---
+
+## 6️⃣ BACKGROUND JOB & QUEUE DESIGN
+
+### Architecture: "Postgres + Edge Functions"
+
+We do not need an external queue (BullMQ/Redis) initially. Postgres is sufficient for <1000 jobs/minute.
+
+#### The Job Table (`scans`)
+Wait, we already defined `scans` with a `status`.
+
+#### The Worker (Supabase Edge Function)
+Path: `supabase/functions/worker-scan/index.ts`
+Environment: Deno (TypeScript).
+
+**Logic Flow**:
+1.  **Receive**: `scanId` from payload.
+2.  **Lock**: `UPDATE scans SET status = 'processing' WHERE id = scanId AND status = 'queued'`. If 0 rows affected, exit (duplicate).
+3.  **Fetch**: Get `repo_owner`, `repo_name` from DB.
+4.  **GitHub API**:
+    -   Fetch File Tree.
+    -   **Optimization**: Check Redis `tree:{sha}`. If hit, skip fetch.
+5.  **AI Analysis**:
+    -   Call Gemini/OpenAI.
+    -   **Timeout Safety**: Edge Functions have 400s timeout (much better than Vercel's 10s).
+6.  **Save**:
+    -   `UPDATE scans SET status = 'completed'`.
+    -   `INSERT INTO scan_snapshots ...`.
+    -   `UPDATE usage_meters SET scan_count = scan_count + 1`.
+7.  **Error Handling**:
+    -   Try/Catch.
+    -   If error, `UPDATE scans SET status = 'failed', error = err.message`.
+
+---
+
+## 7️⃣ GITHUB API RATE-LIMIT SURVIVAL
+
+**The Problem**: 5,000 requests per hour per IP.
+**The Constraints**: 10k users = 50k scans/day = 1M GitHub requests. We have 5k/hr capability. We will fail.
+
+**The Strategy**:
+
+#### 1. Conditional Requests (The "Golden Ticket")
+GitHub returns `304 Not Modified` if you send the correct `If-None-Match` (ETag) header.
+**These requests do NOT count against the rate limit.**
+
+**Implementation**:
+1.  Fetch Repo -> Save `ETag` in Redis `etag:${owner}:${repo}`.
+2.  Next Fetch -> Send `If-None-Match: <cached_etag>`.
+3.  If 304 -> Use Cached Data.
+4.  If 200 -> Update Cache + ETag.
+
+#### 2. User-Attributed Tokens (Clerk)
+-   When a user logs in with GitHub via Clerk, getting the **OAuth Access Token** is crucial.
+-   We use **User's Token** for their scans.
+-   **Result**: Each user brings their *own* 5,000/hr limit.
+-   **Risk**: If we abuse it, the *user* gets rate-limited. We must still be efficient.
+
+#### 3. Scan Deduplication
+-   If User A scans `facebook/react`, and User B scans `facebook/react` 10 minutes later:
+-   Check `scans` table for:
+    -   `repo_owner = 'facebook'`
+    -   `repo_name = 'react'`
+    -   `created_at > NOW() - INTERVAL '24 HOURS'`
+-   **Action**: Return the *existing* scan result immediately. Do NOT run AI. Do NOT hit GitHub.
+
+---
+
+## 8️⃣ CACHE & PERFORMANCE ARCHITECTURE
+
+### Redis Structure (Upstash)
+
+To eliminate `repositoryCache.js`, we use Redis.
+
+| Key Pattern | Value | TTL | Use Case |
+| :--- | :--- | :--- | :--- |
+| `scan:${owner}:${repo}` | JSON String (Result) | 24 Hours | Instant scan results for popular repos. |
+| `tree:${owner}:${repo}:${sha}` | JSON String (File Tree) | 7 Days | File trees are immutable per SHA. Massive saving. |
+| `guest_ip:${md5_ip}` | Int (Count) | 24 Hours | Enforce Guest limits. |
+
+### Cold Start Safety
+-   Vercel Edge/Serverless functions sleep.
+-   Redis is external (http based). It persists.
+-   **Latency**: Upstash Global is <50ms. Slower than `Map()` (0ms) but **correct**.
+
+---
+
+## 9️⃣ EDGE FUNCTIONS vs NODE BACKEND
+
+**Why Split?**
+-   **Node.js (Vercel)**: Best for complex logic, Clerk integration, DB interactions. Short execution limit.
+-   **Edge (Supabase)**: Best for **Long Running IO**. AI calls can take 60s. Node.js on Vercel Hobby dies at 10s.
+
+**Decision**:
+1.  **UI/API Routes**: Stay on Vercel (Node).
+2.  **Scan Worker**: Runs on Supabase Edge.
+3.  **Marketing Pages**: Vercel Static.
+
+---
+
+## 🔟 STEP-BY-STEP BUILD ORDER
+
+#### Phase 1: Infrastructure (Day 1)
+1.  Create Supabase Project (`gitprofile-prod`).
+2.  Create Clerk Application (`gitprofile-auth`).
+3.  Create Upstash Redis Database.
+4.  Set Environment Variables in Vercel & `.env.local`.
+
+#### Phase 2: Database & Auth (Day 2)
+5.  Run SQL Migration (Create tables defined in Section 4).
+6.  Install `@clerk/nextjs` `@supabase/supabase-js`.
+7.  Delete `app/api/auth`.
+8.  Implement `middleware.ts` for route protection.
+9.  Implement `api/webhooks/clerk` to sync users.
+
+#### Phase 3: The Engine (Day 3-4)
+10. Remove `repositoryCache.js`. Setup `lib/redis.ts`.
+11. Build `supabase/functions/worker-scan`.
+12. Rewrite `app/api/analysis/route.js` to enqueue tasks.
+13. Update UI to Poll for results.
+
+#### Phase 4: Optimization (Day 5)
+14. Implement ETag caching in Member Worker.
+15. Implement "User Token" usage for Pro members.
+
+#### Phase 5: Launch
+16. Run Integration Tests.
+17. Deploy to Vercel.
+
+---
+
+## 🧪 1️⃣1️⃣ TESTING & SAFETY
+
+### Release Verification Checklist
+1.  **The "Slow Scan" Test**: Find a repo with 50 files. Ensure scan completes even if AI takes 45 seconds. (Verifies Queue/Worker).
+2.  **The "Abuse" Test**: Click "Scan" 10 times rapidly. Only 1 job should enter queue (Deduplication).
+3.  **The "Free" Test**: Scan 5 repos. 6th should verify "Limit Reached" error.
+4.  **The "Privacy" Test**: Try to view `scans` table via Supabase JS Client in Console. Should receive `Permission Denied` (RLS).
+
+---
+
+## 🚀 1️⃣2️⃣ FINAL SCALE READINESS CHECK
+
+### What breaks at 1k Users?
+-   **Redis Connection**: Upstash Free has limits. Monitor usage.
+-   **Cost**: Deep Seek / Gemini costs. Ensure we aren't scanning unnecessarily.
+
+### What breaks at 10k Users?
+-   **GitHub Rate Limit**: Even with tokens, we might hit abuse detection if 100 users scan the *same* repo simultaneously.
+-   **Fix**: Aggressive Deduplication (Section 7.3).
+
+### What breaks at 100k Users?
+-   **Postgres Queue**: `SELECT * FROM scans WHERE status='queued'` gets slow with 1M rows.
+-   **Fix**: Move to **QStash** or **BullMQ** (Redis Queue) instead of Postgres Table polling.
