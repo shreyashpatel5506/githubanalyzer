@@ -118,6 +118,15 @@ export async function fetchRepositoryTree(
 
     const result = { files, stats };
     
+    // SAFETY: Limit max files to prevent DoS / OOM
+    if (result.stats.total > 5000) {
+        return {
+             files: [],
+             stats: result.stats,
+             error: `Repository too large (>5000 files). Please upgrade to Enterprise.`
+        }
+    }
+
     // Cache the result
     setCachedTree(owner, repo, commitSha, result);
 
