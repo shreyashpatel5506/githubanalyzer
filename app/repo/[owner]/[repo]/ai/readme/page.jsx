@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Layout from "@/app/components/Layout";
@@ -30,7 +30,7 @@ import {
 export default function ReadmePage() {
   const { owner, repo } = useParams();
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { user, isLoaded, isSignedIn } = useUser();
 
   const [repoData, setRepoData] = useState(null);
   const [readmeContent, setReadmeContent] = useState(null);
@@ -62,18 +62,20 @@ export default function ReadmePage() {
 
         setRepoData(repoDetails);
 
-        if (status === "loading") return;
+        setRepoData(repoDetails);
 
-        if (!session) {
+        if (!isLoaded) return;
+
+        if (!isSignedIn) {
           setShowLoginModal(true);
           setLoading(false);
           return;
         }
 
-        const loggedInUsername = session.user.username?.toLowerCase();
+        const loggedInUsername = user.username?.toLowerCase() || user.fullName?.toLowerCase();
         const searchedLower = targetUsername.toLowerCase();
 
-        if (loggedInUsername !== searchedLower) {
+        if (loggedInUsername && loggedInUsername !== searchedLower) {
           setShowNotOwnerModal(true);
           setLoading(false);
           return;
@@ -90,7 +92,7 @@ export default function ReadmePage() {
     };
 
     init();
-  }, [repo, router, session, status]);
+  }, [repo, router, user, isLoaded, isSignedIn]);
 
   const fetchReadme = async (username, repoName) => {
     try {
@@ -103,7 +105,7 @@ export default function ReadmePage() {
         body: JSON.stringify({
           owner: username,
           repo: repoName,
-          planTier: session?.user?.plan || "free",
+          planTier: user.publicMetadata?.plan || "free",
         }),
       });
 

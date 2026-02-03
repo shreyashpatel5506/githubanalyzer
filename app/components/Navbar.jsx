@@ -4,9 +4,8 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, User, CodeXml, Folder, Mail, Menu, X, Star } from "lucide-react";
-import { useSession } from "next-auth/react";
+import { UserButton, SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { CircleUser } from "lucide-react";
-import ProfileModal from "./ProfileModal";
 
 const navItems = [
   { name: "Home", icon: <Home size={18} />, path: "/" },
@@ -20,9 +19,6 @@ const GITHUB_REPO_URL = "https://github.com/shreyashpatel5506/gitprofileAi";
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  const [openProfile, setOpenProfile] = useState(false);
-
   const [burgerMenuOpen, setBurgerMenuOpen] = useState(false);
 
   return (
@@ -47,11 +43,10 @@ export default function Navbar() {
               <Link
                 key={item.name}
                 href={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
-                  isActive
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
                     ? "bg-indigo-50 text-indigo-600 shadow-sm"
                     : "text-slate-500 hover:bg-gray-50 hover:text-slate-900"
-                }`}
+                  }`}
               >
                 <span
                   className={
@@ -84,24 +79,20 @@ export default function Navbar() {
           </a>
         </div>
       </aside>
-      {session && (
-        <button
-          onClick={() => setOpenProfile(true)}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition"
-        >
-          <img
-            src={session.user.image}
-            className="w-8 h-8 rounded-full"
-            alt="profile"
-          />
 
-          <span className="font-medium text-slate-700">
-            {session.user.name || "GitHub User"}
-          </span>
-        </button>
-      )}
-
-      <ProfileModal open={openProfile} onClose={() => setOpenProfile(false)} />
+      <div className="hidden md:flex fixed top-6 right-6 z-50">
+        <SignedIn>
+          <UserButton afterSignOutUrl="/" />
+        </SignedIn>
+        <SignedOut>
+          <SignInButton mode="modal">
+            <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition">
+              <CircleUser size={18} />
+              <span>Sign In</span>
+            </button>
+          </SignInButton>
+        </SignedOut>
+      </div>
 
       {/* Mobile Menu Button */}
       <button
@@ -113,19 +104,17 @@ export default function Navbar() {
 
       {/* Mobile Overlay */}
       <div
-        className={`md:hidden fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-40 transition-opacity duration-300 ${
-          burgerMenuOpen
+        className={`md:hidden fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-40 transition-opacity duration-300 ${burgerMenuOpen
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"
-        }`}
+          }`}
         onClick={() => setBurgerMenuOpen(false)}
       />
 
       {/* Mobile Sidebar */}
       <header
-        className={`md:hidden fixed top-0 left-0 h-screen w-64 bg-white border-r border-gray-100 z-50 shadow-2xl transition-all duration-300 ease-in-out transform ${
-          burgerMenuOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`md:hidden fixed top-0 left-0 h-screen w-64 bg-white border-r border-gray-100 z-50 shadow-2xl transition-all duration-300 ease-in-out transform ${burgerMenuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
       >
         <nav className="flex flex-col gap-2 px-6 py-10">
           {navItems.map((item) => {
@@ -135,11 +124,10 @@ export default function Navbar() {
                 key={item.name}
                 href={item.path}
                 onClick={() => setBurgerMenuOpen(false)}
-                className={`flex items-center gap-4 px-6 py-4 rounded-2xl transition-all ${
-                  isActive
+                className={`flex items-center gap-4 px-6 py-4 rounded-2xl transition-all ${isActive
                     ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
                     : "bg-gray-50 text-slate-600 active:bg-gray-100"
-                }`}
+                  }`}
               >
                 <span className={isActive ? "text-white" : "text-slate-400"}>
                   {item.icon}

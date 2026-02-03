@@ -1,28 +1,20 @@
 import { NextResponse } from "next/server";
 
 /* 🧠 READ-ME PIPELINE */
-import connectMongo from "@/app/config/db";
-import { getGitHubHeaders } from "@/app/lib/github/headers";
-
-import User from "@/app/models/user";
-import Usage from "@/app/models/Usage";
+// Removed legacy DB connection
 import { runAI } from "../../ai/router";
 import { commitReadmeToGitHub } from "@/app/lib/github/commitReadme.js";
+import { scanRepository } from "@/app/lib/scanner/codeScanner.js";
+import { buildSnapshot } from "@/app/lib/readme/buildSnapshot";
 import { collectMeta } from "@/app/lib/readme/collectMeta";
 import { collectStructure } from "@/app/lib/readme/collectStructure";
 import { collectPackage } from "@/app/lib/readme/collectPackage";
 import { collectAssets } from "@/app/lib/readme/collectAssets";
-import { buildSnapshot } from "@/app/lib/readme/buildSnapshot";
-import { scanRepository } from "@/app/lib/scanner/codeScanner.js";
-import { getOrStartScan } from "@/app/lib/repositoryCache.js";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-
-const DAILY_LIMIT = {
-  free: 3,
-  pro: 20,
-  pro_plus: 100,
-};
+import { getGitHubHeaders } from "@/app/lib/github/headers";
+// Replaced NextAuth with Clerk
+import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
+import { createAdminClient } from "@/app/lib/supabase";
+import { checkAndIncrementLimit } from "@/app/lib/billing";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -157,28 +149,19 @@ Generate the README now.
 
 export async function POST(req) {
   try {
-    // Ensure MongoDB connection
-    await connectMongo();
-
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.githubId) {
+    // 1. Auth Check (Clerk)
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await User.findOne({ githubId: session.user.githubId });
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const body = await req.json();
     const {
       owner,
       repo,
       repoSnapshot,
       commitToRepo = false,
-      githubToken,
-    } = body;
+      githubToken: providedToken,
+    } = await req.json();
 
     if (!owner || !repo) {
       return NextResponse.json(
@@ -186,8 +169,32 @@ export async function POST(req) {
         { status: 400 },
       );
     }
+    
+    // 2. Resolve Plan & GitHub Token
+    // Try to get token from Clerk Oauth if not provided
+    let githubToken = providedToken;
+    if (!githubToken) {
+        // Fetch from Clerk
+        const client = await clerkClient();
+        const tokens = await client.users.getUserOauthAccessToken(userId, 'oauth_github');
+        if (tokens.data.length > 0) {
+            githubToken = tokens.data[0].token;
+        }
+    }
+    
+    // Fallback if no token (public repo scan might work with public token, but limits are tight)
+    // For now we assume typical user has it linked or provided it.
 
-    const plan = user.plan || "free";
+    const supabase = createAdminClient();
+    
+    // Fetch Profile for Plan
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('plan')
+        .eq('user_id', userId)
+        .single();
+        
+    const plan = profile?.plan || "free";
 
     /* 🔐 PLAN GUARD */
     if (commitToRepo && plan !== "pro_plus") {
@@ -197,24 +204,24 @@ export async function POST(req) {
       );
     }
 
-    /* 📊 USAGE */
-    const date = today();
-    const usage = await Usage.findOneAndUpdate(
-      { userId: user.id, date },
-      { $setOnInsert: { userId: user.id, date, readmeGenerateCount: 0 } },
-      { upsert: true, new: true },
-    );
-
-    if (usage.readmeGenerateCount >= DAILY_LIMIT[plan]) {
-      return NextResponse.json(
-        { error: "Daily README limit reached" },
-        { status: 429 },
-      );
-    }
+    /* 📊 USAGE Check & Increment */
+     try {
+        await checkAndIncrementLimit(userId, plan, 'readme_gens');
+     } catch (limitError) {
+        return NextResponse.json(
+            { error: limitError.message }, 
+            { status: 429 }
+        );
+     }
+     
+    // Note: checkAndIncrementLimit auto-increments. If subsequent steps fail, we consumed credit.
+    // This is acceptable behavior for MVP to avoid complex rollback.
 
     const headers = getGitHubHeaders(githubToken);
 
     // Collect data from GitHub API (single pass - no double fetching)
+    // We reuse logic from legacy codeScanner but call it directly
+    
     const [apiMeta, pkg, assets] = await Promise.all([
       collectMeta({ owner, repo, headers }).catch(() => null),
       collectPackage({ owner, repo, headers }).catch(() => null),
@@ -230,15 +237,12 @@ export async function POST(req) {
       headers,
     }).catch(() => []);
 
-    // 🔬 INTELLIGENCE: Fetch comprehensive code analysis (Cached & Coalesced)
-    // This ensures README uses the exact same data as the "Code Smells" page.
-    const analysis = await getOrStartScan(owner, repo, defaultBranch, async () => {
-      // Note: We use the same token and plan as the user's session
-      return await scanRepository(owner, repo, {
+    // 🔬 INTELLIGENCE: Fetch comprehensive code analysis (Synchronous call using legacy scanner)
+    // We removed 'getOrStartScan' caching wrapper. We scan afresh or rely on codeScanner internal efficiency.
+    const analysis = await scanRepository(owner, repo, {
         branch: defaultBranch,
         token: githubToken,
         planTier: plan,
-      });
     });
 
     // Fallback to provided snapshot if API fails (respects user-provided data)
@@ -284,10 +288,6 @@ export async function POST(req) {
     if (!readmeContent || readmeContent.length < 80) {
       throw new Error("README generation produced insufficient content");
     }
-
-    /* 📈 USAGE++ */
-    usage.readmeGenerateCount += 1;
-    await usage.save();
 
     /* 🚀 PRO++ COMMIT */
     if (commitToRepo) {

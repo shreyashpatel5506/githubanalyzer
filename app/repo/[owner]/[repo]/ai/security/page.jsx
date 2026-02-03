@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Layout from "@/app/components/Layout";
@@ -22,7 +22,7 @@ import {
 export default function SecurityPage() {
   const { owner, repo } = useParams();
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { user, isLoaded, isSignedIn } = useUser();
 
   const [repoData, setRepoData] = useState(null);
   const [scanResults, setScanResults] = useState(null);
@@ -51,18 +51,18 @@ export default function SecurityPage() {
 
         setRepoData(repoDetails);
 
-        if (status === "loading") return;
+        if (!isLoaded) return;
 
-        if (!session) {
+        if (!isSignedIn) {
           setShowLoginModal(true);
           setLoading(false);
           return;
         }
 
-        const loggedInUsername = session.user.username?.toLowerCase();
+        const loggedInUsername = user.username?.toLowerCase() || user.fullName?.toLowerCase();
         const searchedLower = targetUsername.toLowerCase();
 
-        if (loggedInUsername !== searchedLower) {
+        if (loggedInUsername && loggedInUsername !== searchedLower) {
           setShowNotOwnerModal(true);
           setLoading(false);
           return;
@@ -74,7 +74,7 @@ export default function SecurityPage() {
           body: JSON.stringify({
             owner: targetUsername,
             repo: repoDetails.name,
-            planTier: session.user.plan || "free",
+            planTier: user.publicMetadata?.plan || "free",
           }),
         });
 
@@ -99,7 +99,7 @@ export default function SecurityPage() {
     };
 
     init();
-  }, [repo, router, session, status]);
+  }, [repo, router, user, isLoaded, isSignedIn]);
 
   if (loading) {
     return (

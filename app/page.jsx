@@ -11,11 +11,12 @@ import { Card, CardContent } from "./components/Card";
 import { exportToPDF } from "./utils/exportToPdf";
 import { useRouter } from "next/navigation";
 import { Sparkles, Brain, Share2, RotateCcw } from "lucide-react";
-import { useSession } from "next-auth/react";
+import { useUser, useClerk } from "@clerk/nextjs";
 
 const HomePage = () => {
   const router = useRouter();
-  const { status } = useSession();
+  const { isSignedIn, user } = useUser();
+  const { openSignIn } = useClerk();
 
   const [data, setData] = useState(null);
   const [analysis, setAnalysis] = useState(null);
@@ -114,7 +115,7 @@ const HomePage = () => {
     const params = new URLSearchParams(window.location.search);
     const user = params.get("user");
     if (user) {
-      fetchGithubData(user, status === "authenticated");
+      fetchGithubData(user, isSignedIn);
     }
   }, []);
 
@@ -123,11 +124,11 @@ const HomePage = () => {
   =============================== */
   useEffect(() => {
     if (!data) return;
-    if (status !== "authenticated") return;
+    if (!isSignedIn) return;
     if (data.fetchedWithAuth) return;
 
     fetchGithubData(data.profile.username, true);
-  }, [status]);
+  }, [isSignedIn]);
 
   /* ===============================
      🔎 SEARCH
@@ -135,9 +136,9 @@ const HomePage = () => {
   const handleSearch = useCallback(
     (username) => {
       router.push(`?user=${username}`, { scroll: false });
-      fetchGithubData(username, status === "authenticated");
+      fetchGithubData(username, isSignedIn);
     },
-    [status]
+    [isSignedIn]
   );
 
   const handleReset = () => {

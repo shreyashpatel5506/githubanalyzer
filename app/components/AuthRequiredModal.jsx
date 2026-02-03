@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { SignInButton } from "@clerk/nextjs";
 import { X, Github } from "lucide-react";
 
 export default function AuthRequiredModal({ open, onClose }) {
@@ -34,22 +34,23 @@ export default function AuthRequiredModal({ open, onClose }) {
             Login required
           </h2>
 
-         <p className="text-sm text-gray-400 text-center">
-  To unlock full analysis, please sign in with the
-  <span className="text-white font-medium"> same GitHub account </span>
-  as the searched profile.
-</p>
+          <p className="text-sm text-gray-400 text-center">
+            To unlock full analysis, please sign in with the
+            <span className="text-white font-medium"> same GitHub account </span>
+            as the searched profile.
+          </p>
 
         </div>
 
         {/* Action */}
-        <button
-          onClick={() => signIn("github")}
-          className="mt-6 w-full flex items-center justify-center gap-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black font-semibold py-3 transition-all active:scale-[0.98]"
-        >
-          <Github size={18} />
-          Continue with GitHub
-        </button>
+        <SignInButton mode="modal">
+          <button
+            className="mt-6 w-full flex items-center justify-center gap-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black font-semibold py-3 transition-all active:scale-[0.98]"
+          >
+            <Github size={18} />
+            Continue with GitHub
+          </button>
+        </SignInButton>
       </div>
 
       {/* Animation */}
