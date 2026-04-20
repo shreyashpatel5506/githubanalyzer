@@ -1,7 +1,6 @@
 import React from 'react';
-import { createAdminClient } from '@/app/lib/supabase';
-import { syncPlansCatalog, PLAN_LIMITS } from '@/app/lib/billing';
-import { Check, X, Infinity, Shield, Zap, Database, Github } from 'lucide-react';
+import { PLAN_LIMITS, PLAN_PRICES } from '@/app/lib/billing';
+import { Check, X, Infinity, Shield, Zap, Github } from 'lucide-react';
 
 type PlanLimits = {
     repo_scan: number;
@@ -27,14 +26,6 @@ type PlanLimits = {
     deep_code_smell_scan: number;
     bug_confidence_scores: boolean;
     security_severity_view: boolean;
-};
-
-type Plan = {
-    id: string;
-    key: string;
-    limits: PlanLimits;
-    price_monthly: string | number;
-    created_at: string;
 };
 
 const FEATURE_LABELS: Record<keyof PlanLimits, string> = {
@@ -73,31 +64,20 @@ const formatValue = (value: number | boolean) => {
     return <span className="font-medium text-zinc-900 dark:text-zinc-100">{value}</span>;
 };
 
-export default async function PlansPage() {
-    const supabase = createAdminClient();
-
-    await syncPlansCatalog();
-
-    const { data: plansData, error } = await supabase
-        .from('plans')
-        .select('*')
-        .in('key', Object.keys(PLAN_LIMITS));
-
-    if (error) {
-        return <div className="p-8 text-red-500">Error loading plans: {error.message}</div>;
-    }
-
-    if (!plansData || plansData.length === 0) {
-        return (
-            <div className="p-8 text-zinc-500">
-                No plans found. Please check your database RLS policies.
-            </div>
-        );
-    }
-
-    // Sort plans by price: Free (0) -> Pro (999) -> Pro Plus (1999)
-    // and cast to Plan type
-    const plans = (plansData as unknown as Plan[]).sort((a, b) => Number(a.price_monthly) - Number(b.price_monthly));
+export default function PlansPage() {
+    const plans: Array<{
+        id: string;
+        key: keyof typeof PLAN_LIMITS;
+        limits: PlanLimits;
+        price_monthly: number;
+    }> = (Object.keys(PLAN_LIMITS) as Array<keyof typeof PLAN_LIMITS>)
+        .map((key) => ({
+            id: key,
+            key,
+            limits: PLAN_LIMITS[key] as PlanLimits,
+            price_monthly: PLAN_PRICES[key],
+        }))
+        .sort((a, b) => Number(a.price_monthly) - Number(b.price_monthly));
 
     return (
         <div className="min-h-screen bg-zinc-50 py-16 px-4 dark:bg-black sm:px-6 lg:px-8">
