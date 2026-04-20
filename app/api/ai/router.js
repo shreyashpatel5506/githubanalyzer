@@ -1,4 +1,4 @@
-import { callGroq } from "./provider/groq";
+import { callGroq, hasGroqKey } from "./provider/groq";
 import { callGemini } from "./provider/gemini";
 import { callOpenAI } from "./provider/openai";
 
@@ -23,7 +23,7 @@ export async function runAI(prompt) {
   const now = Date.now();
 
   // 1️⃣ GROQ — FREE & FAST (PRIMARY)
-  if (process.env.GROQ_API_KEY) {
+  if (hasGroqKey()) {
     try {
       return await callGroq(prompt);
     } catch (err) {
@@ -78,6 +78,6 @@ export async function runAI(prompt) {
       groqError ? `Groq: ${groqError.message}` : "Groq: skipped",
       geminiError ? `Gemini: ${geminiError.message}` : "Gemini: skipped",
       openAIError ? `OpenAI: ${openAIError.message}` : "OpenAI: skipped",
-    ].join(" | ")
+    ].join(" | "),
   );
 }
