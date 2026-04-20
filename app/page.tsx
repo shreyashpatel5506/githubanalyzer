@@ -32,10 +32,7 @@ export default function HomePage() {
     setAnalysis(null);
 
     try {
-      // NOTE: Using the existing /api/github route (assuming it exists or will be ported)
-      // If not, this needs to be implemented. The prompt asked to map logic. 
-      // I haven't implemented /api/github in claritycode yet!
-      // I should do that next if it's missing.
+     
       const res = await fetch("/api/github", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
