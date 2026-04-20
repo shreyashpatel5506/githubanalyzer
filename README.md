@@ -1,135 +1,65 @@
-# githubanalyzer
+# ClarityCode SaaS - AI Code Quality Analytics
 
-Automated GitHub profile and repository analysis for developers, recruiters, and open-source contributors.
+ClarityCode is a deep-dive repository analysis tool constructed to scan GitHub repositories, identifying security vulnerabilities, bugs, and code smells through static analysis and multi-model AI logic.
 
----
+## 🚀 Working Features
+- **Repository Scanning Engine**: Analyzes code architecture, languages, and dependencies via GitHub API.
+- **Billing Meters (Local)**: Tracking logic exists to decrement available usage tokens (repo scans, PR creations, deep scans).
+- **Multi-AI Routing**: Capable of cascading through Groq, OpenAI, and Gemini for fallback completions.
 
-## Overview
+## ⚠️ Known Limitations (Work In Progress)
+- Background processes may get abruptly terminated during large repo scans due to serverless timeout constraints.
+- Real-time webhooks for PayPal/Razorpay upgrade pathways are incomplete, meaning users cannot purchase paid tiers yet.
+- Supabase native authentication requires complete wiring (custom cookies are currently used, breaking RLS).
 
-githubanalyzer analyzes GitHub profiles and repositories to extract technology stacks, contribution patterns, and repository insights. Built for developers who need to quickly evaluate codebases and profiles without manual review.
+## 🛠 Tech Stack
+- **Frontend / Framework**: Next.js 14+ (App Router), React, Tailwind CSS 4
+- **Backend / DB**: Supabase PostgreSQL + Edge Functions
+- **AI Core**: Groq SDK, Google Generative AI (Gemini), OpenAI
+- **Billing**: PayPal / Razorpay
 
-**Key capabilities:**
-- Repository-level technology stack detection
-- Profile contribution analysis and activity summaries
-- Commit pattern insights
-- Clean, API-driven architecture
+## ⚙️ Setup Instructions
 
----
-
-## Who It's For
-
-- **Recruiters** evaluating candidate GitHub profiles during technical hiring
-- **Developers** assessing repositories before contributing or integrating
-- **Open-source contributors** exploring unfamiliar projects
-- **Engineering teams** conducting codebase reviews and technology audits
-
----
-
-## Features
-
-- **Profile Analysis** — Comprehensive GitHub profile insights including contribution activity, repository distribution, and technology preferences
-- **Repository Analysis** — Deep dive into repository structure, dependencies, and commit patterns
-- **Tech Stack Detection** — Automated identification of languages, frameworks, and tools used across repositories
-- **API Architecture** — Scalable backend with RESTful endpoints for programmatic access
-- **Modern UI** — Responsive interface built with React and Tailwind CSS
-
----
-
-## Tech Stack
-
-#### Frontend
-- React
-- Next.js (App Router)
-- Tailwind CSS
-
-#### Backend
-- Node.js
-- Next.js API Routes
-
-#### APIs
-- GitHub REST API
-
-#### Deployment
-- Vercel
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+ and npm
-- GitHub Personal Access Token (optional, recommended for higher rate limits)
-
-### Installation
-
-1. Clone the repository
-
-```bash
-git clone https://github.com/your-username/gitprofileAi.git
-cd gitprofileAi
-```
-
-2. Install dependencies
-
+### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-3. Configure environment variables
-
-Create a `.env.local` file in the root directory:
-
+### 2. Environment Variables (.env.local)
 ```env
-GITHUB_TOKEN=your_github_token_here
+# Database
+NEXT_PUBLIC_SUPABASE_URL=YOUR_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_SUPABASE_KEY
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_KEY
+
+# AI Keys
+GROQ_API_KEY=YOUR_GROQ_KEY
+OPENAI_KEYS=KEY1,KEY2
+GEMINI_API_KEY=YOUR_GEMINI_KEY
+ENABLE_GEMINI=true
+
+# Auth
+SESSION_BOOTSTRAP_TOKEN=RANDOM_SECURE_STRING
+
+# Payments
+PAYPAL_ENV=live
+PAYPAL_CLIENT_ID=YOUR_CLIENT_ID
+PAYPAL_CLIENT_SECRET=YOUR_SECRET
+
+# Analytics / SEO
+NEXT_PUBLIC_GTM_ID=GTM-XXXXXXX
+NEXT_PUBLIC_GOOGLE_VERIFICATION=YOUR_GOOGLE_SITE_VERIFICATION
+
+# AdSense
+NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT=ca-pub-XXXXXXXXXXXXXXX
 ```
 
-> **Note:** A GitHub token is optional but recommended to avoid API rate limits. Never commit your token to version control.
-
-4. Run the development server
-
+### 3. Run Locally
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
-## Contributing
-
-We welcome contributions. Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature-name`)
-3. Make your changes
-4. Commit with clear messages (`git commit -m 'Add feature'`)
-5. Push to your fork (`git push origin feature/your-feature-name`)
-6. Open a Pull Request
-
-Please read `CONTRIBUTING.md` for detailed guidelines before submitting a PR.
-
----
-
-## Roadmap
-
-- [ ] Weekly contribution graph visualization
-- [ ] Contributor leaderboard and activity metrics
-- [ ] Multi-repository comparison tool
-- [ ] Public REST API for programmatic access
-- [ ] PDF export for analysis reports
-- [ ] Enhanced language and framework detection
-
----
-
-## License
-
-MIT License. See `LICENSE` for details.
-
----
-
-## Contact
-
-#### Shreyash Patel
-- GitHub: [@shreyashpatel5506](https://github.com/shreyashpatel5506)
-- Discord: [Community Server](https://discord.gg/YOUR_INVITE_CODE)
+## 🔮 Future Improvements
+1. Implement hardened task queues (e.g., Inngest) to guarantee scan job completion.
+2. Standardize all authentication strictly behind `@supabase/ssr` middleware.
+3. Hook up Razorpay/PayPal webhooks to unlock feature monetization.
