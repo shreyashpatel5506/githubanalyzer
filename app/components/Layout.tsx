@@ -4,6 +4,7 @@ import { Sparkles, Menu, X, Github, ShieldCheck, Crown } from "lucide-react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSessionAuth } from "@/app/lib/use-session-auth";
+import { getSiteUrl } from "@/app/lib/seo";
 
 function PlanBadge({ tier }: { tier: string }) {
     if (tier === "pro_plus") {
@@ -29,6 +30,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const { isSignedIn, user } = useSessionAuth();
     const [plan, setPlan] = useState<string>("free");
+    const githubLoginHref = `${getSiteUrl()}/api/auth/github/start?next=/repos`;
 
     // Fetch user profile and plan on mount
     useEffect(() => {
@@ -108,7 +110,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                                 </div>
                             ) : (
                                 <a
-                                    href="/api/auth/github/start?next=/repos"
+                                    href={githubLoginHref}
                                     className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition shadow-md hover:shadow-emerald-500/20"
                                 >
                                     <Github className="w-4 h-4" />
@@ -186,7 +188,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     ) : (
                         <div className="px-4">
                             <a
-                                href="/api/auth/github/start?next=/repos"
+                                href={githubLoginHref}
                                 className="w-full flex justify-center py-3 bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-600/20"
                             >
                                 Continue with GitHub

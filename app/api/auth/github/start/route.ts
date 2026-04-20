@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 
 function appUrl(reqUrl: string): string {
   const requestOrigin = new URL(reqUrl).origin;
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
 
   if (!configured) return requestOrigin;
 
@@ -16,6 +16,10 @@ function appUrl(reqUrl: string): string {
 
     if (inProduction && localhostHostnames.has(configuredUrl.hostname)) {
       return requestOrigin;
+    }
+
+    if (process.env.NEXT_PUBLIC_SITE_URL?.trim()) {
+      return configuredUrl.origin;
     }
 
     // // In production, prefer the explicitly configured live app domain.
