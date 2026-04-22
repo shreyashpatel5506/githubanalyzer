@@ -344,7 +344,6 @@ Consistent automated analysis builds trust and speeds engineering decisions.
         ].join('|'));
 
         const uniqueSecurityRows = dedupeRows(securityRows, (row) => [
-            row.file_path || 'unknown',
             row.severity || 'low',
             row.issue_type || '',
             row.description || '',
@@ -430,7 +429,6 @@ Keep each array 3-8 items. Use realistic paths.`;
         ].join('|'));
 
         const finalSecurityRows = dedupeRows(uniqueSecurityRows, (row) => [
-            row.file_path || 'unknown',
             row.severity || 'low',
             row.issue_type || '',
             row.description || '',
