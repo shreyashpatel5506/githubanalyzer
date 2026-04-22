@@ -32,6 +32,24 @@ export function sortBySeverity<T extends { severity?: string }>(items: T[]): T[]
   });
 }
 
+export function dedupeFindings<T extends { fileName?: string; line?: number; severity?: string; explanation?: string; suggestedFix?: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const key = [
+      (item.fileName || 'unknown').toLowerCase(),
+      Number(item.line || 1),
+      (item.severity || 'low').toLowerCase(),
+      (item.explanation || '').trim().toLowerCase(),
+      (item.suggestedFix || '').trim().toLowerCase(),
+    ].join('|');
+
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function normalizeCodeSmellRow(row: any): NormalizedFinding {
   const rule = row?.rule_id ? ` (${row.rule_id})` : '';
   return {

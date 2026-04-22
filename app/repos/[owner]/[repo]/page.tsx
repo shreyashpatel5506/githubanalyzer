@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Layout from "@/app/components/Layout";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -124,6 +124,7 @@ export default function RepoDetailPage() {
     const [loading, setLoading] = useState(true);
     const [runningDeepAnalysis, setRunningDeepAnalysis] = useState(false);
     const [commitView, setCommitView] = useState<"monthly" | "yearly">("monthly");
+    const deepAnalysisButtonRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         let mounted = true;
@@ -248,6 +249,19 @@ export default function RepoDetailPage() {
         { label: "Scalability", value: aiScores.performance ?? 7 },
         { label: "Code Quality", value: aiScores.testing ?? 7 },
     ];
+
+    useEffect(() => {
+        if (!isDeepView || loading) return;
+
+        const totalFindings = (stats.bugs || 0) + (stats.code_smells || 0) + (stats.security_issues || 0);
+        if (totalFindings !== 0) return;
+
+        const button = deepAnalysisButtonRef.current;
+        if (!button) return;
+
+        button.focus();
+        button.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, [isDeepView, loading, stats.bugs, stats.code_smells, stats.security_issues]);
 
     const monthlyCommitData = details?.commit_analytics?.monthly || [];
     const yearlyCommitData = details?.commit_analytics?.yearly || [];
@@ -389,7 +403,11 @@ export default function RepoDetailPage() {
                                                     </div>
                                                     <span className="text-[10px] font-black uppercase tracking-widest text-red-500">Bugs</span>
                                                 </div>
-                                                <div className="text-3xl font-black text-gray-900 dark:text-white mb-1">{stats.bugs}</div>
+                                                {!isDeepView ? (
+                                                    <div className="text-3xl font-black text-gray-900 dark:text-white mb-1">{stats.bugs}</div>
+                                                ) : (
+                                                    <div className="text-sm font-bold text-gray-500 dark:text-gray-300 mb-1">Open findings</div>
+                                                )}
                                                 <p className="text-xs text-gray-500 font-medium italic">Detected bugs</p>
                                             </CardContent>
                                         </Card>
@@ -404,7 +422,11 @@ export default function RepoDetailPage() {
                                                     </div>
                                                     <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">Security</span>
                                                 </div>
-                                                <div className="text-3xl font-black text-gray-900 dark:text-white mb-1">{stats.security_issues}</div>
+                                                {!isDeepView ? (
+                                                    <div className="text-3xl font-black text-gray-900 dark:text-white mb-1">{stats.security_issues}</div>
+                                                ) : (
+                                                    <div className="text-sm font-bold text-gray-500 dark:text-gray-300 mb-1">Open findings</div>
+                                                )}
                                                 <p className="text-xs text-gray-500 font-medium italic">Potential vulnerabilities</p>
                                             </CardContent>
                                         </Card>
@@ -419,7 +441,11 @@ export default function RepoDetailPage() {
                                                     </div>
                                                     <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">Smells</span>
                                                 </div>
-                                                <div className="text-3xl font-black text-gray-900 dark:text-white mb-1">{stats.code_smells}</div>
+                                                {!isDeepView ? (
+                                                    <div className="text-3xl font-black text-gray-900 dark:text-white mb-1">{stats.code_smells}</div>
+                                                ) : (
+                                                    <div className="text-sm font-bold text-gray-500 dark:text-gray-300 mb-1">Open findings</div>
+                                                )}
                                                 <p className="text-xs text-gray-500 font-medium italic">Maintainability concerns</p>
                                             </CardContent>
                                         </Card>
@@ -433,9 +459,10 @@ export default function RepoDetailPage() {
                                             <p className="text-emerald-100 text-sm">Run a fresh scan for bugs, code smells, security and ESLint summary.</p>
                                         </div>
                                         <button
+                                            ref={deepAnalysisButtonRef}
                                             onClick={handleRunDeepAnalysis}
                                             disabled={runningDeepAnalysis}
-                                            className="px-5 py-2.5 bg-white text-emerald-700 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-50 transition shadow-xl disabled:opacity-70"
+                                            className="px-5 py-2.5 bg-white text-emerald-700 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-50 transition shadow-xl disabled:opacity-70 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 focus-visible:scale-[1.03]"
                                         >
                                             {runningDeepAnalysis ? "Starting..." : "Run Deep Analysis"}
                                         </button>

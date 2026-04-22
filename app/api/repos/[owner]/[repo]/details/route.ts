@@ -3,6 +3,7 @@ import { createAdminClient } from '@/app/lib/supabase';
 import { getOctokitForCurrentUser } from '@/app/lib/github-server';
 import { getSessionUser } from '@/app/lib/auth-server';
 import { getCommitAnalytics } from '@/app/lib/delivery/commitAnalytics';
+import { dedupeFindings, findingsFromSnapshot } from '@/app/lib/repo-analysis';
 
 export async function GET(
     req: Request,
@@ -107,19 +108,13 @@ export async function GET(
             .eq('repo_scan_id', scan?.id || '')
             .maybeSingle();
 
-        const snapshotSmells = Array.isArray(snapshot?.metrics?.findings?.code_smells)
-            ? snapshot.metrics.findings.code_smells.length
-            : 0;
-        const snapshotBugs = Array.isArray(snapshot?.metrics?.findings?.bugs)
-            ? snapshot.metrics.findings.bugs.length
-            : 0;
-        const snapshotSecurity = Array.isArray(snapshot?.metrics?.findings?.security_issues)
-            ? snapshot.metrics.findings.security_issues.length
-            : 0;
+        const snapshotSmells = dedupeFindings(findingsFromSnapshot(snapshot?.metrics, 'code_smells')).length;
+        const snapshotBugs = dedupeFindings(findingsFromSnapshot(snapshot?.metrics, 'bugs')).length;
+        const snapshotSecurity = dedupeFindings(findingsFromSnapshot(snapshot?.metrics, 'security_issues')).length;
 
-        const smellsTotal = (codeSmellsCount.count || 0) > 0 ? (codeSmellsCount.count || 0) : snapshotSmells;
-        const bugsTotal = (bugsCount.count || 0) > 0 ? (bugsCount.count || 0) : snapshotBugs;
-        const securityTotal = (securityCount.count || 0) > 0 ? (securityCount.count || 0) : snapshotSecurity;
+        const smellsTotal = snapshot?.metrics ? snapshotSmells : (codeSmellsCount.count || 0);
+        const bugsTotal = snapshot?.metrics ? snapshotBugs : (bugsCount.count || 0);
+        const securityTotal = snapshot?.metrics ? snapshotSecurity : (securityCount.count || 0);
         const hasReadme = Boolean(readmeResponse?.data?.content);
 
         const pullRequests = pullsResponse.data;

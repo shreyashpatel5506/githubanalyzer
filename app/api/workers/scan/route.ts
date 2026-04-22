@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/app/lib/supabase'
 import { runAI } from '@/app/lib/ai-client'
 import { scanRepositoryFiles } from '@/app/lib/scanner/codeScanner'
+import { dedupeFindings } from '@/app/lib/repo-analysis'
 
 type Finding = {
     fileName?: string;
@@ -127,6 +128,17 @@ function parseFixPlan(text: string) {
                 deliverables: [],
             };
         });
+}
+
+function dedupeRows<T>(rows: T[], signature: (row: T) => string): T[] {
+    const seen = new Set<string>();
+
+    return rows.filter((row) => {
+        const key = signature(row);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 }
 
 /* ---------------- WORKER API ---------------- */
@@ -316,8 +328,31 @@ Consistent automated analysis builds trust and speeds engineering decisions.
             remediation: s.suggestedFix || 'Apply secure coding practices.',
         }));
 
+        const uniqueCodeSmellRows = dedupeRows(codeSmellRows, (row) => [
+            row.file_path || 'unknown',
+            row.line || 1,
+            row.severity || 'low',
+            row.category || 'maintainability',
+            row.message || '',
+            row.rule_id || '',
+        ].join('|'));
+
+        const uniqueBugRows = dedupeRows(bugRows, (row) => [
+            row.file_path || 'unknown',
+            row.description || '',
+            row.confidence_score || 0,
+        ].join('|'));
+
+        const uniqueSecurityRows = dedupeRows(securityRows, (row) => [
+            row.file_path || 'unknown',
+            row.severity || 'low',
+            row.issue_type || '',
+            row.description || '',
+            row.remediation || '',
+        ].join('|'));
+
         // If real scan returned no findings (e.g., empty repo / unscanned), fall back to AI
-        if (codeSmellRows.length === 0 && bugRows.length === 0 && securityRows.length === 0) {
+        if (uniqueCodeSmellRows.length === 0 && uniqueBugRows.length === 0 && uniqueSecurityRows.length === 0) {
             const findingsPrompt = `
 You are generating machine-readable findings for a GitHub repository.
 
@@ -349,7 +384,7 @@ Keep each array 3-8 items. Use realistic paths.`;
             }
 
             (findings.code_smells || []).forEach((item: Finding) => {
-                codeSmellRows.push({
+                uniqueCodeSmellRows.push({
                     repo_scan_id: scanId,
                     file_path: item.fileName || 'unknown',
                     rule_id: 'ai-detected-smell',
@@ -361,7 +396,7 @@ Keep each array 3-8 items. Use realistic paths.`;
                 });
             });
             (findings.bugs || []).forEach((item: Finding) => {
-                bugRows.push({
+                uniqueBugRows.push({
                     repo_scan_id: scanId,
                     file_path: item.fileName || 'unknown',
                     description: item.explanation || 'Potential bug detected.',
@@ -369,7 +404,7 @@ Keep each array 3-8 items. Use realistic paths.`;
                 });
             });
             (findings.security_issues || []).forEach((item: Finding) => {
-                securityRows.push({
+                uniqueSecurityRows.push({
                     repo_scan_id: scanId,
                     severity: normalizeCodeSmellSeverity(item.severity),
                     issue_type: 'ai-detected',
@@ -379,6 +414,29 @@ Keep each array 3-8 items. Use realistic paths.`;
             });
         }
 
+        const finalCodeSmellRows = dedupeRows(uniqueCodeSmellRows, (row) => [
+            row.file_path || 'unknown',
+            row.line || 1,
+            row.severity || 'low',
+            row.category || 'maintainability',
+            row.message || '',
+            row.rule_id || '',
+        ].join('|'));
+
+        const finalBugRows = dedupeRows(uniqueBugRows, (row) => [
+            row.file_path || 'unknown',
+            row.description || '',
+            row.confidence_score || 0,
+        ].join('|'));
+
+        const finalSecurityRows = dedupeRows(uniqueSecurityRows, (row) => [
+            row.file_path || 'unknown',
+            row.severity || 'low',
+            row.issue_type || '',
+            row.description || '',
+            row.remediation || '',
+        ].join('|'));
+
         await Promise.all([
             supabase.from('code_smells').delete().eq('repo_scan_id', scanId),
             supabase.from('bugs').delete().eq('repo_scan_id', scanId),
@@ -386,30 +444,30 @@ Keep each array 3-8 items. Use realistic paths.`;
             supabase.from('eslint_reports').delete().eq('repo_scan_id', scanId),
         ]);
 
-        if (codeSmellRows.length > 0) {
-            const { error } = await supabase.from('code_smells').insert(codeSmellRows);
+        if (finalCodeSmellRows.length > 0) {
+            const { error } = await supabase.from('code_smells').insert(finalCodeSmellRows);
             if (error) throw new Error(`Failed to insert code smells: ${error.message}`);
         }
-        if (bugRows.length > 0) {
-            const { error } = await supabase.from('bugs').insert(bugRows);
+        if (finalBugRows.length > 0) {
+            const { error } = await supabase.from('bugs').insert(finalBugRows);
             if (error) throw new Error(`Failed to insert bugs: ${error.message}`);
         }
-        if (securityRows.length > 0) {
-            const { error } = await supabase.from('security_issues').insert(securityRows);
+        if (finalSecurityRows.length > 0) {
+            const { error } = await supabase.from('security_issues').insert(finalSecurityRows);
             if (error) throw new Error(`Failed to insert security issues: ${error.message}`);
         }
 
-        const eslintTotalErrors = bugRows.length + securityRows.filter((r: any) => r.severity === 'high' || r.severity === 'critical').length;
-        const eslintTotalWarnings = codeSmellRows.length + securityRows.filter((r: any) => r.severity === 'medium' || r.severity === 'low').length;
+        const eslintTotalErrors = finalBugRows.length + finalSecurityRows.filter((r: any) => r.severity === 'high' || r.severity === 'critical').length;
+        const eslintTotalWarnings = finalCodeSmellRows.length + finalSecurityRows.filter((r: any) => r.severity === 'medium' || r.severity === 'low').length;
 
         await supabase.from('eslint_reports').insert({
             repo_scan_id: scanId,
             total_errors: eslintTotalErrors,
             total_warnings: eslintTotalWarnings,
             rule_summary: {
-                code_smells: codeSmellRows.length,
-                bugs: bugRows.length,
-                security_issues: securityRows.length,
+                code_smells: finalCodeSmellRows.length,
+                bugs: finalBugRows.length,
+                security_issues: finalSecurityRows.length,
                 files_analyzed: realScan.filesAnalyzed,
                 scan_source: realScan.filesAnalyzed > 0 ? 'static_analysis' : 'ai_fallback',
             },
@@ -421,30 +479,30 @@ Keep each array 3-8 items. Use realistic paths.`;
         });
 
         const structuredFindings = {
-            code_smells: realScan.codeSmells.map((s) => ({
+            code_smells: dedupeFindings(realScan.codeSmells.map((s) => ({
                 id: s.id,
                 fileName: s.file,
                 line: s.lineStart,
                 severity: s.severity,
                 explanation: s.message,
                 suggestedFix: s.suggestedFix,
-            })),
-            bugs: realScan.bugs.map((s) => ({
+            }))),
+            bugs: dedupeFindings(realScan.bugs.map((s) => ({
                 id: s.id,
                 fileName: s.file,
                 line: s.lineStart,
                 severity: s.severity,
                 explanation: s.message,
                 suggestedFix: s.suggestedFix,
-            })),
-            security_issues: realScan.securityIssues.map((s) => ({
+            }))),
+            security_issues: dedupeFindings(realScan.securityIssues.map((s) => ({
                 id: s.id,
                 fileName: s.file,
                 line: s.lineStart,
                 severity: s.severity,
                 explanation: s.message,
                 suggestedFix: s.suggestedFix,
-            })),
+            }))),
         };
 
         // 6. Store Results (Snapshot)
@@ -473,7 +531,7 @@ Keep each array 3-8 items. Use realistic paths.`;
             completed_at: new Date().toISOString(),
         }).eq('id', scanId);
 
-        console.log(`[Worker] Analysis completed for ${scanId}. Files analyzed: ${realScan.filesAnalyzed}, Smells: ${realScan.smells.length}`);
+        console.log(`[Worker] Analysis completed for ${scanId}. Files analyzed: ${realScan.filesAnalyzed}, Smells: ${finalCodeSmellRows.length}`);
         return NextResponse.json({ success: true });
 
     } catch (error: any) {

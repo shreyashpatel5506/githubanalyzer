@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Layout from "@/app/components/Layout";
 import { useParams } from "next/navigation";
 import { Bug, ExternalLink, GitPullRequest, ScanSearch, RefreshCw } from "lucide-react";
@@ -29,6 +29,7 @@ export default function BugsPage() {
     const [showUpgrade, setShowUpgrade] = useState(false);
     const [scanStatus, setScanStatus] = useState<string | null>(null);
     const [scannedBranch, setScannedBranch] = useState<string>('main');
+    const scanNowButtonRef = useRef<HTMLButtonElement>(null);
 
     const buildGitHubFileUrl = (fileName: string, line: number) => {
         const safePath = fileName.split('/').map(encodeURIComponent).join('/');
@@ -48,6 +49,16 @@ export default function BugsPage() {
     useEffect(() => {
         loadBugs().finally(() => setLoading(false));
     }, [loadBugs]);
+
+    useEffect(() => {
+        if (loading || scanning || bugs.length !== 0) return;
+
+        const button = scanNowButtonRef.current;
+        if (!button) return;
+
+        button.focus();
+        button.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, [loading, scanning, bugs.length]);
 
     const handleRunScan = async () => {
         setScanning(true);
@@ -239,9 +250,10 @@ export default function BugsPage() {
                                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Scan Results Yet</h2>
                                     <p className="text-gray-500 dark:text-gray-400 mb-6">Run a scan to detect bugs in your repository code.</p>
                                     <button
+                                        ref={scanNowButtonRef}
                                         onClick={handleRunScan}
                                         disabled={scanning}
-                                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-emerald-600/20"
+                                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-emerald-600/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400/40 focus-visible:scale-[1.03]"
                                     >
                                         <ScanSearch size={20} />
                                         Scan Now

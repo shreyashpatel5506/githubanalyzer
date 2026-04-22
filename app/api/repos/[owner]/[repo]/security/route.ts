@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/app/lib/supabase';
 import { hasFeatureAccess } from '@/app/lib/billing';
 import { resolveUserPlan } from '@/app/lib/entitlements';
-import { findingsFromSnapshot, normalizeSecurityRow, sortBySeverity } from '@/app/lib/repo-analysis';
+import { dedupeFindings, findingsFromSnapshot, normalizeSecurityRow, sortBySeverity } from '@/app/lib/repo-analysis';
 import { getSessionUser } from '@/app/lib/auth-server';
 
 export async function GET(
@@ -69,10 +69,10 @@ export async function GET(
             .eq('repo_scan_id', latestCompletedScan.id)
             .order('severity', { ascending: true });
 
-        let normalized = (issues || []).map(normalizeSecurityRow);
+        let normalized = dedupeFindings((issues || []).map(normalizeSecurityRow));
 
         if (normalized.length === 0) {
-            normalized = findingsFromSnapshot(latestSnapshot?.metrics, 'security_issues');
+            normalized = dedupeFindings(findingsFromSnapshot(latestSnapshot?.metrics, 'security_issues'));
         }
 
         return NextResponse.json({ issues: sortBySeverity(normalized), scannedBranch });

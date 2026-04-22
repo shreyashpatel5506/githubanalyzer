@@ -8,6 +8,7 @@ import { getSessionUser } from '@/app/lib/auth-server';
 
 export async function POST(req: Request) {
     try {
+        const requestOrigin = new URL(req.url).origin;
         const sessionUser = await getSessionUser();
         const userId = sessionUser?.userId || null;
         const { repoFullName } = await req.json().catch(() => ({}));
@@ -106,8 +107,7 @@ export async function POST(req: Request) {
         if (scanError) throw scanError;
 
         // 5. Trigger Background Execution (Non-blocking)
-        const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-        const WORKER_URL = `${APP_URL}/api/workers/scan`;
+        const WORKER_URL = new URL('/api/workers/scan', requestOrigin).toString();
 
         fetch(WORKER_URL, {
             method: 'POST',

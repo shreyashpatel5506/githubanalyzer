@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/app/lib/supabase';
-import { findingsFromSnapshot, normalizeCodeSmellRow, sortBySeverity } from '@/app/lib/repo-analysis';
+import { dedupeFindings, findingsFromSnapshot, normalizeCodeSmellRow, sortBySeverity } from '@/app/lib/repo-analysis';
 import { getSessionUser } from '@/app/lib/auth-server';
 
 export async function GET(
@@ -60,10 +60,10 @@ export async function GET(
             .eq('repo_scan_id', latestCompletedScan.id)
             .order('severity', { ascending: true });
 
-        let normalized = (smells || []).map(normalizeCodeSmellRow);
+        let normalized = dedupeFindings((smells || []).map(normalizeCodeSmellRow));
 
         if (normalized.length === 0) {
-            normalized = findingsFromSnapshot(latestSnapshot?.metrics, 'code_smells');
+            normalized = dedupeFindings(findingsFromSnapshot(latestSnapshot?.metrics, 'code_smells'));
         }
 
         return NextResponse.json({ smells: sortBySeverity(normalized), scannedBranch });
