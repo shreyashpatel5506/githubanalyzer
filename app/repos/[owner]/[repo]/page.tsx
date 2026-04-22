@@ -109,6 +109,11 @@ interface RepoDetails {
             careerImpact?: string;
         };
     };
+    scan?: {
+        has_completed_scan?: boolean;
+        latest_status?: string | null;
+        latest_scan_id?: string | null;
+    };
 }
 
 export default function RepoDetailPage() {
@@ -267,6 +272,9 @@ export default function RepoDetailPage() {
     const yearlyCommitData = details?.commit_analytics?.yearly || [];
 
     const activeCommitData = commitView === "monthly" ? monthlyCommitData : yearlyCommitData;
+    const hasCompletedScan = Boolean(details.scan?.has_completed_scan);
+    const totalFindings = (stats.bugs || 0) + (stats.code_smells || 0) + (stats.security_issues || 0);
+    const showAllClear = isDeepView && hasCompletedScan && totalFindings === 0;
 
     return (
         <Layout>
@@ -468,6 +476,19 @@ export default function RepoDetailPage() {
                                         </button>
                                     </CardContent>
                                 </Card>
+
+                                {showAllClear && (
+                                    <Card className="border border-emerald-300/40 shadow-sm bg-emerald-50/70 dark:bg-emerald-900/20">
+                                        <CardContent className="p-5">
+                                            <p className="text-sm md:text-base font-semibold text-emerald-700 dark:text-emerald-300">
+                                                ✅ Latest completed scan shows no Bugs, no Code Smells, and no Security issues.
+                                            </p>
+                                            <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-300/80">
+                                                Repo currently looks clean. You can run Deep Analysis again anytime to re-check new commits.
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                )}
 
                                 <Card className="border-none shadow-lg dark:bg-gray-900/40 backdrop-blur-md overflow-hidden">
                                     <CardHeader className="border-b border-gray-100 dark:border-gray-800/50">

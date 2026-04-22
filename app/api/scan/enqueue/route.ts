@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { headers } from 'next/headers';
 import crypto from 'crypto';
 import { createAdminClient } from '@/app/lib/supabase';
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Repository name required' }, { status: 400 });
         }
 
-        const [owner, repo] = repoFullName.split('/');
+        const [owner, repo] = String(repoFullName).split('/');
         if (!owner || !repo) {
             return NextResponse.json({ error: 'Invalid repository format. Expected owner/repo' }, { status: 400 });
         }
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
             }
         }
 
-        // 2. Check if repository exists and verify ownership/presence
+        // 2. Ensure repository row exists
         let { data: repository } = await supabase
             .from('repositories')
             .select('*')
@@ -75,21 +75,36 @@ export async function POST(req: Request) {
             repository = newRepo;
         }
 
-        // 3. Prevent duplicate scans if one is already pending/processing
+        // 3. Prevent duplicate scans, but recover stale stuck scans
         const { data: existingScan } = await supabase
             .from('repo_scans')
-            .select('id, status')
+            .select('id, status, created_at, started_at')
             .eq('repo_id', repository.id)
             .in('status', ['pending', 'processing'])
             .maybeSingle();
 
         if (existingScan) {
-            return NextResponse.json({
-                success: true,
-                scanId: existingScan.id,
-                message: 'Analysis already in progress for this repository.',
-                status: existingScan.status
-            });
+            const createdAt = new Date(existingScan.created_at || existingScan.started_at || Date.now()).getTime();
+            const isStale = Number.isFinite(createdAt) && (Date.now() - createdAt) > 10 * 60 * 1000;
+
+            if (isStale) {
+                await supabase
+                    .from('repo_scans')
+                    .update({
+                        status: 'failed',
+                        error_message: 'Previous scan timed out while waiting for worker execution.',
+                        completed_at: new Date().toISOString(),
+                    })
+                    .eq('id', existingScan.id)
+                    .in('status', ['pending', 'processing']);
+            } else {
+                return NextResponse.json({
+                    success: true,
+                    scanId: existingScan.id,
+                    message: 'Analysis already in progress for this repository.',
+                    status: existingScan.status,
+                });
+            }
         }
 
         // 4. Create a new scan
@@ -99,37 +114,68 @@ export async function POST(req: Request) {
                 repo_id: repository.id,
                 requested_by_user_id: userId || null,
                 status: 'pending',
-                started_at: new Date().toISOString()
+                started_at: new Date().toISOString(),
             })
             .select()
             .single();
 
         if (scanError) throw scanError;
 
-        // 5. Trigger Background Execution (Non-blocking)
-        const WORKER_URL = new URL('/api/workers/scan', requestOrigin).toString();
+        // 5. Trigger worker after response lifecycle
+        const workerUrl = new URL('/api/workers/scan', requestOrigin).toString();
 
-        fetch(WORKER_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-            },
-            body: JSON.stringify({ scanId: scan.id })
-        }).catch(err => console.error('[SCAN ENQUEUE] Worker trigger failed:', err));
+        after(async () => {
+            try {
+                const workerRes = await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+                    },
+                    body: JSON.stringify({ scanId: scan.id }),
+                });
+
+                if (!workerRes.ok) {
+                    const detail = await workerRes.text().catch(() => 'No response body');
+                    await supabase
+                        .from('repo_scans')
+                        .update({
+                            status: 'failed',
+                            error_message: `Worker dispatch failed (${workerRes.status}): ${detail.slice(0, 200)}`,
+                            completed_at: new Date().toISOString(),
+                        })
+                        .eq('id', scan.id)
+                        .eq('status', 'pending');
+                }
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : 'Unknown dispatch error';
+                console.error('[SCAN ENQUEUE] Worker trigger failed:', message);
+                await supabase
+                    .from('repo_scans')
+                    .update({
+                        status: 'failed',
+                        error_message: `Worker dispatch failed: ${message}`,
+                        completed_at: new Date().toISOString(),
+                    })
+                    .eq('id', scan.id)
+                    .eq('status', 'pending');
+            }
+        });
 
         return NextResponse.json({
             success: true,
             scanId: scan.id,
             message: 'Repository queued for deep analysis. This may take 30-60 seconds.',
-            status: 'pending'
+            status: 'pending',
         });
-
     } catch (error: any) {
         console.error('[SCAN ENQUEUE ERROR]:', error);
-        return NextResponse.json({
-            error: 'Failed to queue analysis',
-            details: error.message
-        }, { status: 500 });
+        return NextResponse.json(
+            {
+                error: 'Failed to queue analysis',
+                details: error.message,
+            },
+            { status: 500 },
+        );
     }
 }

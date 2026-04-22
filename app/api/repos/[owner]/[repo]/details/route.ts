@@ -83,6 +83,7 @@ export async function GET(
         }
 
         let scan: any = null;
+        let latestCompletedScan: any = null;
         if (repositoryRow?.id) {
             const { data: foundScans } = await supabase
                 .from('repo_scans')
@@ -91,10 +92,11 @@ export async function GET(
                 .eq('requested_by_user_id', userId)
                 .order('created_at', { ascending: false })
                 .limit(20);
-            scan = (foundScans || []).find((s: any) => s.status === 'completed') || (foundScans || [])[0] || null;
+            latestCompletedScan = (foundScans || []).find((s: any) => s.status === 'completed') || null;
+            scan = latestCompletedScan || (foundScans || [])[0] || null;
         }
 
-        const scanIds = scan ? [scan.id] : [];
+        const scanIds = latestCompletedScan ? [latestCompletedScan.id] : [];
 
         const [codeSmellsCount, bugsCount, securityCount] = await Promise.all([
             supabase.from('code_smells').select('*', { count: 'exact', head: true }).in('repo_scan_id', scanIds),
@@ -105,7 +107,7 @@ export async function GET(
         const { data: snapshot } = await supabase
             .from('scan_snapshots')
             .select('metrics')
-            .eq('repo_scan_id', scan?.id || '')
+            .eq('repo_scan_id', latestCompletedScan?.id || '')
             .maybeSingle();
 
         const snapshotSmells = dedupeFindings(findingsFromSnapshot(snapshot?.metrics, 'code_smells')).length;
@@ -209,6 +211,11 @@ export async function GET(
                     fixPlan48h: snapshot?.metrics?.sections?.fixPlan48h ?? [],
                     careerImpact: snapshot?.metrics?.sections?.careerImpact ?? '',
                 },
+            },
+            scan: {
+                has_completed_scan: Boolean(latestCompletedScan),
+                latest_status: scan?.status || null,
+                latest_scan_id: scan?.id || null,
             },
         });
     } catch (error: any) {

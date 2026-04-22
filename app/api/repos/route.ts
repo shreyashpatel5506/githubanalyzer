@@ -157,9 +157,10 @@ export async function GET() {
                     .order('created_at', { ascending: false })
                     .limit(20);
 
-                const latestScan = (scans || []).find((s: any) => s.status === 'completed') || (scans || [])[0] || null;
+                const latestCompletedScan = (scans || []).find((s: any) => s.status === 'completed') || null;
+                const latestScan = latestCompletedScan || (scans || [])[0] || null;
 
-                if (!latestScan) {
+                if (!latestCompletedScan) {
                     return {
                         id: dbRepo.id,
                         github_repo_id: String(ghRepo.id),
@@ -177,17 +178,18 @@ export async function GET() {
                         last_pushed_at: ghRepo.pushed_at,
                         scanned: false,
                         lastScanDate: null,
+                        scanStatus: latestScan?.status || null,
                         stats: null,
                     };
                 }
 
                 // Get stats for this scan
                 const [codeSmells, bugs, security, readme, snapshot] = await Promise.all([
-                    supabase.from('code_smells').select('*', { count: 'exact', head: true }).eq('repo_scan_id', latestScan.id),
-                    supabase.from('bugs').select('*', { count: 'exact', head: true }).eq('repo_scan_id', latestScan.id),
-                    supabase.from('security_issues').select('*', { count: 'exact', head: true }).eq('repo_scan_id', latestScan.id),
+                    supabase.from('code_smells').select('*', { count: 'exact', head: true }).eq('repo_scan_id', latestCompletedScan.id),
+                    supabase.from('bugs').select('*', { count: 'exact', head: true }).eq('repo_scan_id', latestCompletedScan.id),
+                    supabase.from('security_issues').select('*', { count: 'exact', head: true }).eq('repo_scan_id', latestCompletedScan.id),
                     supabase.from('readme_generations').select('id').eq('repo_id', dbRepo.id).limit(1).maybeSingle(),
-                    supabase.from('scan_snapshots').select('metrics').eq('repo_scan_id', latestScan.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+                    supabase.from('scan_snapshots').select('metrics').eq('repo_scan_id', latestCompletedScan.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
                 ]);
 
                 const snapshotSmells = Array.isArray(snapshot.data?.metrics?.findings?.code_smells)
@@ -220,8 +222,8 @@ export async function GET() {
                     default_branch: ghRepo.default_branch,
                     last_pushed_at: ghRepo.pushed_at,
                     scanned: true,
-                    lastScanDate: latestScan.created_at,
-                    scanStatus: latestScan.status,
+                    lastScanDate: latestCompletedScan.created_at,
+                    scanStatus: latestScan?.status || latestCompletedScan.status,
                     stats: {
                         code_smells: smellCount,
                         bugs: bugCount,
