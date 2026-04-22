@@ -75,7 +75,25 @@ export async function GET(
             normalized = dedupeFindings(findingsFromSnapshot(latestSnapshot?.metrics, 'bugs'));
         }
 
-        return NextResponse.json({ bugs: sortBySeverity(normalized), scannedBranch });
+        const { data: publishedSuggestions } = await supabase
+            .from('pull_request_suggestions')
+            .select('summary')
+            .eq('repo_id', repository.id)
+            .eq('status', 'published');
+
+        const resolvedIds = new Set<string>();
+        for (const suggestion of publishedSuggestions || []) {
+            const summary = suggestion?.summary || '';
+            const matches = summary.match(/\[\[RESOLVED:bug:([^\]]+)\]\]/g) || [];
+            for (const marker of matches) {
+                const idMatch = marker.match(/\[\[RESOLVED:bug:([^\]]+)\]\]/);
+                if (idMatch?.[1]) resolvedIds.add(idMatch[1]);
+            }
+        }
+
+        const filtered = normalized.filter((finding) => !resolvedIds.has(String(finding.id)));
+
+        return NextResponse.json({ bugs: sortBySeverity(filtered), scannedBranch });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         console.error('Bugs fetch error:', error);

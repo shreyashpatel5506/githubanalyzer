@@ -66,7 +66,25 @@ export async function GET(
             normalized = dedupeFindings(findingsFromSnapshot(latestSnapshot?.metrics, 'code_smells'));
         }
 
-        return NextResponse.json({ smells: sortBySeverity(normalized), scannedBranch });
+        const { data: publishedSuggestions } = await supabase
+            .from('pull_request_suggestions')
+            .select('summary')
+            .eq('repo_id', repository.id)
+            .eq('status', 'published');
+
+        const resolvedIds = new Set<string>();
+        for (const suggestion of publishedSuggestions || []) {
+            const summary = suggestion?.summary || '';
+            const matches = summary.match(/\[\[RESOLVED:code-smell:([^\]]+)\]\]/g) || [];
+            for (const marker of matches) {
+                const idMatch = marker.match(/\[\[RESOLVED:code-smell:([^\]]+)\]\]/);
+                if (idMatch?.[1]) resolvedIds.add(idMatch[1]);
+            }
+        }
+
+        const filtered = normalized.filter((finding) => !resolvedIds.has(String(finding.id)));
+
+        return NextResponse.json({ smells: sortBySeverity(filtered), scannedBranch });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         console.error('Code smells fetch error:', error);
