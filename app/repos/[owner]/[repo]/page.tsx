@@ -126,6 +126,38 @@ export default function RepoDetailPage() {
     const [commitView, setCommitView] = useState<"monthly" | "yearly">("monthly");
     const deepAnalysisButtonRef = useRef<HTMLButtonElement>(null);
 
+    const stats = details?.stats || {
+        code_smells: 0,
+        bugs: 0,
+        security_issues: 0,
+        has_readme: false,
+    };
+
+    const overallScore = stats.overall_score ?? Math.max(1, 100 - (stats.bugs + stats.security_issues) * 5);
+    const aiScores = details?.aiAnalysis?.scores || {};
+    const aiSections = details?.aiAnalysis?.sections || {};
+
+    const scoreTiles = [
+        { label: "Maintainability", value: aiScores.maintainability ?? 7 },
+        { label: "Security", value: aiScores.security ?? 7 },
+        { label: "Documentation", value: aiScores.documentation ?? 7 },
+        { label: "Scalability", value: aiScores.performance ?? 7 },
+        { label: "Code Quality", value: aiScores.testing ?? 7 },
+    ];
+
+    useEffect(() => {
+        if (!isDeepView || loading) return;
+
+        const totalFindings = (stats.bugs || 0) + (stats.code_smells || 0) + (stats.security_issues || 0);
+        if (totalFindings !== 0) return;
+
+        const button = deepAnalysisButtonRef.current;
+        if (!button) return;
+
+        button.focus();
+        button.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, [isDeepView, loading, stats.bugs, stats.code_smells, stats.security_issues]);
+
     useEffect(() => {
         let mounted = true;
 
@@ -230,38 +262,6 @@ export default function RepoDetailPage() {
             </Layout>
         );
     }
-
-    const stats = details.stats || {
-        code_smells: 0,
-        bugs: 0,
-        security_issues: 0,
-        has_readme: false,
-    };
-
-    const overallScore = stats.overall_score ?? Math.max(1, 100 - (stats.bugs + stats.security_issues) * 5);
-    const aiScores = details.aiAnalysis?.scores || {};
-    const aiSections = details.aiAnalysis?.sections || {};
-
-    const scoreTiles = [
-        { label: "Maintainability", value: aiScores.maintainability ?? 7 },
-        { label: "Security", value: aiScores.security ?? 7 },
-        { label: "Documentation", value: aiScores.documentation ?? 7 },
-        { label: "Scalability", value: aiScores.performance ?? 7 },
-        { label: "Code Quality", value: aiScores.testing ?? 7 },
-    ];
-
-    useEffect(() => {
-        if (!isDeepView || loading) return;
-
-        const totalFindings = (stats.bugs || 0) + (stats.code_smells || 0) + (stats.security_issues || 0);
-        if (totalFindings !== 0) return;
-
-        const button = deepAnalysisButtonRef.current;
-        if (!button) return;
-
-        button.focus();
-        button.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, [isDeepView, loading, stats.bugs, stats.code_smells, stats.security_issues]);
 
     const monthlyCommitData = details?.commit_analytics?.monthly || [];
     const yearlyCommitData = details?.commit_analytics?.yearly || [];
