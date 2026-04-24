@@ -4,7 +4,6 @@ import { Sparkles, Menu, X, Github, ShieldCheck, Crown } from "lucide-react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSessionAuth } from "@/app/lib/use-session-auth";
-import { getSiteUrl } from "@/app/lib/seo";
 
 function PlanBadge({ tier }: { tier: string }) {
     if (tier === "pro_plus") {
@@ -30,7 +29,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const { isSignedIn, user } = useSessionAuth();
     const [plan, setPlan] = useState<string>("free");
-    const githubLoginHref = `${getSiteUrl()}/api/auth/github/start?next=/repos`;
+    const githubLoginHref = "/api/auth/github/start?next=/repos";
 
     // Fetch user profile and plan on mount
     useEffect(() => {

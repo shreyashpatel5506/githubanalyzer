@@ -18,15 +18,6 @@ function appUrl(reqUrl: string): string {
       return requestOrigin;
     }
 
-    if (process.env.NEXT_PUBLIC_SITE_URL?.trim()) {
-      return configuredUrl.origin;
-    }
-
-    // // In production, prefer the explicitly configured live app domain.
-    // if (inProduction) {
-    //   return configuredUrl.origin;
-    // }
-
     // Prevent accidental redirect to a different host (e.g., protected Vercel URL)
     // unless explicitly allowed.
     if (!allowCrossOrigin && configuredUrl.hostname !== requestUrl.hostname) {

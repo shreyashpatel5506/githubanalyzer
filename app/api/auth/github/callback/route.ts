@@ -21,15 +21,6 @@ function appUrl(reqUrl: string): string {
       return requestOrigin;
     }
 
-    if (process.env.NEXT_PUBLIC_SITE_URL?.trim()) {
-      return configuredUrl.origin;
-    }
-
-    // In production, prefer the explicitly configured live app domain.
-    // if (inProduction) {
-    //   return configuredUrl.origin;
-    // }
-
     if (!allowCrossOrigin && configuredUrl.hostname !== requestUrl.hostname) {
       return requestOrigin;
     }
