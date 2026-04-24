@@ -126,6 +126,16 @@ export default function RootLayout({
           />
         )}
       </head>
+
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+    
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteSchema) }}
+        />
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
