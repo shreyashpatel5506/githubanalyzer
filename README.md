@@ -61,5 +61,4 @@ npm run dev
 
 ## 🔮 Future Improvements
 1. Implement hardened task queues (e.g., Inngest) to guarantee scan job completion.
-2. Standardize all authentication strictly behind `@supabase/ssr` middleware.
-3. Hook up Razorpay/PayPal webhooks to unlock feature monetization.
+2. Hook up Razorpay/PayPal webhooks to unlock feature monetization.
