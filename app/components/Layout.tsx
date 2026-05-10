@@ -2,7 +2,6 @@
 
 import { Sparkles, Menu, X, Github, ShieldCheck, Crown } from "lucide-react";
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useSessionAuth } from "@/app/lib/use-session-auth";
 
@@ -101,10 +100,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                                         href="/profile"
                                         className="flex items-center gap-3 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition"
                                     >
-                                        <Image
+                                        <img
                                             src={user.avatarUrl || '/default-avatar.png'}
-                                            width={32}
-                                            height={32}
                                             className="w-8 h-8 rounded-full ring-2 ring-emerald-500/20 object-cover"
                                             alt="profile"
                                         />
@@ -180,10 +177,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                                 onClick={() => setMobileMenuOpen(false)}
                                 className="mt-4 flex items-center w-full gap-3 p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition border border-gray-200 dark:border-gray-700"
                             >
-                                <Image
+                                <img
                                     src={user.avatarUrl || '/default-avatar.png'}
-                                    width={40}
-                                    height={40}
                                     className="w-10 h-10 rounded-full object-cover"
                                     alt="profile"
                                 />

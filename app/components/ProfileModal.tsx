@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { X, Crown, Zap, Shield, LogOut } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -119,10 +118,8 @@ export default function ProfileModal({ open, onClose }: ProfileModalProps) {
                         {/* Profile Header */}
                         <div className="p-6 border-b border-white/10">
                             <div className="flex flex-col items-center gap-3">
-                                <Image
+                                <img
                                     src={data.user.avatar}
-                                    width={80}
-                                    height={80}
                                     className="w-20 h-20 rounded-full ring-4 ring-purple-500/50 object-cover"
                                     alt="avatar"
                                 />
