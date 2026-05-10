@@ -2,6 +2,7 @@
 
 import { Sparkles, Menu, X, Github, ShieldCheck, Crown } from "lucide-react";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useSessionAuth } from "@/app/lib/use-session-auth";
 
@@ -100,9 +101,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                                         href="/profile"
                                         className="flex items-center gap-3 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition"
                                     >
-                                        <img
+                                        <Image
                                             src={user.avatarUrl || '/default-avatar.png'}
-                                            className="w-8 h-8 rounded-full ring-2 ring-emerald-500/20"
+                                            width={32}
+                                            height={32}
+                                            className="w-8 h-8 rounded-full ring-2 ring-emerald-500/20 object-cover"
                                             alt="profile"
                                         />
                                     </Link>
@@ -150,14 +153,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
 
                 <nav className="p-4 space-y-1">
-                    {['Home', 'Repositories', 'Dashboard', 'Pricing', 'History'].map((item) => (
+                    {[
+                        { label: 'Home', path: '/' },
+                        { label: 'Repositories', path: '/repos' },
+                        { label: 'Dashboard', path: '/dashboard' },
+                        { label: 'Pricing', path: '/pricing' },
+                        { label: 'History', path: '/history' },
+                    ].map(({ label, path }) => (
                         <Link
-                            key={item}
-                            href={item === 'Home' ? '/' : `/${item.toLowerCase()}`}
+                            key={label}
+                            href={path}
                             className="flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors py-3 px-4 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 font-medium"
                             onClick={() => setMobileMenuOpen(false)}
                         >
-                            {item}
+                            {label}
                         </Link>
                     ))}
 
@@ -171,9 +180,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                                 onClick={() => setMobileMenuOpen(false)}
                                 className="mt-4 flex items-center w-full gap-3 p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition border border-gray-200 dark:border-gray-700"
                             >
-                                <img
+                                <Image
                                     src={user.avatarUrl || '/default-avatar.png'}
-                                    className="w-10 h-10 rounded-full"
+                                    width={40}
+                                    height={40}
+                                    className="w-10 h-10 rounded-full object-cover"
                                     alt="profile"
                                 />
                                 <div className="text-left overflow-hidden">

@@ -244,7 +244,7 @@ function normalizeRepos(repos: any[]) {
 
 export async function POST(req: Request) {
     try {
-        const { username, accessToken } = await req.json();
+        const { username, includePrivate } = await req.json();
 
         const validation = validateUsername(username);
         if (!validation.valid) {
@@ -275,29 +275,30 @@ export async function POST(req: Request) {
             headers: publicHeaders,
         });
         const normalizedRepos = normalizeRepos(repos);
-        const authHeaders = getAuthHeaders(accessToken);
 
         let totalPR = 0;
         let openPR = 0;
         let mergedPR = 0;
         let graphStats;
+        let authHeaders = publicHeaders;
 
-        if (accessToken && accessToken !== "session") { // "session" token logic depends on how we handle auth in frontend
-            // If accessToken is "session", we might need to get the real token from the session if available or treat as guest
-            // For now, I'll stick to logic that if it's a real token, we use it. 
-            // If it's "session" (which is what I put in frontend), we probably need to fetch the user's provider token from Clerk?
-            // But I cannot easily get provider token from server component without extra setup.
-            // So for now, I will treat "session" as "guest" or fail gracefully if we want auth features.
-            // The original code passed `accessToken` from frontend. In my ported frontend I passed `"session"` if `includePrivate` was true.
-            // But I didn't implement the token retrieval logic.
-            // I'll stick to guest mode logic if accessToken is not a valid GH token string.
-            // Actually, I'll just check if it's a real token.
+        // If private access requested and user is signed in, use their GitHub token
+        if (includePrivate) {
+            try {
+                const { getGitHubTokenForCurrentUser } = await import('@/app/lib/github-server');
+                const tokenResult = await getGitHubTokenForCurrentUser();
+                if (tokenResult.token) {
+                    authHeaders = getAuthHeaders(tokenResult.token);
+                }
+            } catch (err) {
+                console.warn('Could not retrieve GitHub token for authenticated request, falling back to guest mode');
+            }
         }
 
         // For this port, I'll assume we use guest logic (scraping/estimation) unless a real token is passed.
         // The original code seemed to expect a token for better stats.
 
-        if (accessToken && accessToken !== "session") {
+        if (authHeaders !== publicHeaders) {
             const [totalPRRes, mergedPRRes, openPRRes, graphStatsRaw] =
                 await Promise.all([
                     fetch(
@@ -354,7 +355,7 @@ export async function POST(req: Request) {
                 issues: graphStats.totalIssueContributions,
                 activeRepositories: normalizedRepos.filter((r) => r.isActive).length,
             },
-            authMode: accessToken && accessToken !== "session" ? "authenticated" : "guest",
+            authMode: authHeaders !== publicHeaders ? "authenticated" : "guest",
         });
     } catch (err) {
         console.error(err);

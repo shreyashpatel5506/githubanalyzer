@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Card, CardContent } from "./Card";
 import { MapPin, Link as LinkIcon, Calendar, Share2, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -47,10 +48,12 @@ export default function ProfileCard({ profile, onShare }: ProfileCardProps) {
             <CardContent className="relative pt-0">
                 {/* Avatar */}
                 <div className="flex justify-between items-start -mt-12 mb-4">
-                    <img
+                    <Image
                         src={profile.avatarUrl}
                         alt={profile.name || profile.username}
-                        className="w-24 h-24 rounded-2xl border-4 border-slate-950 shadow-xl"
+                        width={96}
+                        height={96}
+                        className="w-24 h-24 rounded-2xl border-4 border-slate-950 shadow-xl object-cover"
                     />
 
                     <div className="mt-12 flex items-center gap-2">

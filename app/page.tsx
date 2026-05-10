@@ -1,16 +1,33 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, Suspense } from "react";
+import dynamic from "next/dynamic";
 import Layout from "./components/Layout";
 import SearchBar from "./components/SearchBar";
 import ProfileCard from "./components/ProfileCard";
-import ProfileAIAnalysis from "./components/ProfileAIAnalysis";
 import ShareModal from "./components/ShareModal";
 import { StatsGrid } from "./components/StatsGrid";
 import { Card, CardContent } from "./components/Card";
 import { useRouter } from "next/navigation";
 import { Sparkles, Share2, RotateCcw } from "lucide-react";
 import { useSessionAuth } from "@/app/lib/use-session-auth";
+
+// 📦 Lazy-load heavy analysis component (Chart.js, react-chartjs-2)
+const ProfileAIAnalysis = dynamic(() => import("./components/ProfileAIAnalysis"), {
+  ssr: false,
+  loading: () => (
+    <Card>
+      <CardContent className="py-12">
+        <div className="flex flex-col items-center justify-center gap-4">
+          <div className="w-8 h-8 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+          <p className="text-gray-500 dark:text-gray-400 animate-pulse">
+            Loading analysis visualization...
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  ),
+});
 
 export default function HomePage() {
   const router = useRouter();
@@ -38,7 +55,7 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username,
-          accessToken: includePrivate ? "session" : null, // This logic depends on /api/github implementation
+          includePrivate,
         }),
       });
 

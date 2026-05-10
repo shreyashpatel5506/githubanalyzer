@@ -122,90 +122,78 @@ export async function GET() {
         }
 
         const dbRepoByFullName = new Map((dbRepos || []).map((r: any) => [r.full_name, r]));
+        const dbRepoIds = (dbRepos || []).map((r: any) => r.id);
 
-        const reposWithStats = await Promise.all(
-            githubRepos.map(async (ghRepo) => {
-                const dbRepo = dbRepoByFullName.get(ghRepo.full_name);
+        // Batch fetch all scans for all repos in one query
+        const { data: allScans } = await supabase
+            .from('repo_scans')
+            .select('id, repo_id, status, created_at')
+            .eq('requested_by_user_id', userId)
+            .in('repo_id', dbRepoIds.length > 0 ? dbRepoIds : ['__none__'])
+            .order('created_at', { ascending: false });
 
-                if (!dbRepo) {
-                    return {
-                        id: `gh-${ghRepo.id}`,
-                        github_repo_id: String(ghRepo.id),
-                        owner_username: ghRepo.owner.login,
-                        name: ghRepo.name,
-                        full_name: ghRepo.full_name,
-                        is_private: ghRepo.private,
-                        language: ghRepo.language || 'Unknown',
-                        stars: ghRepo.stargazers_count,
-                        forks: ghRepo.forks_count,
-                        watchers: ghRepo.watchers_count,
-                        open_issues: ghRepo.open_issues_count,
-                        description: ghRepo.description,
-                        default_branch: ghRepo.default_branch,
-                        last_pushed_at: ghRepo.pushed_at,
-                        scanned: false,
-                        lastScanDate: null,
-                        stats: null,
-                    };
+        // Build map: repo_id -> latest completed scan
+        const latestScanByRepoId = new Map();
+        const completedScanIds = new Set();
+        (allScans || []).forEach((scan: any) => {
+            if (!latestScanByRepoId.has(scan.repo_id)) {
+                latestScanByRepoId.set(scan.repo_id, scan);
+                if (scan.status === 'completed') {
+                    completedScanIds.add(scan.id);
                 }
+            }
+        });
 
-                const { data: scans } = await supabase
-                    .from('repo_scans')
-                    .select('id, status, created_at')
-                    .eq('repo_id', dbRepo.id)
-                    .eq('requested_by_user_id', userId)
-                    .order('created_at', { ascending: false })
-                    .limit(20);
+        // Batch fetch stats for all completed scans
+        const [codeSmellsData, bugsData, securityData, readmeData, snapshotData] = await Promise.all([
+            completedScanIds.size > 0 ? supabase.from('code_smells').select('repo_scan_id', { count: 'exact', head: true }).in('repo_scan_id', Array.from(completedScanIds)) : Promise.resolve({ data: [], count: {} }),
+            completedScanIds.size > 0 ? supabase.from('bugs').select('repo_scan_id', { count: 'exact', head: true }).in('repo_scan_id', Array.from(completedScanIds)) : Promise.resolve({ data: [], count: {} }),
+            completedScanIds.size > 0 ? supabase.from('security_issues').select('repo_scan_id', { count: 'exact', head: true }).in('repo_scan_id', Array.from(completedScanIds)) : Promise.resolve({ data: [], count: {} }),
+            supabase.from('readme_generations').select('repo_id').in('repo_id', dbRepoIds.length > 0 ? dbRepoIds : ['__none__']),
+            completedScanIds.size > 0 ? supabase.from('scan_snapshots').select('repo_scan_id, metrics').in('repo_scan_id', Array.from(completedScanIds)).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
+        ]);
 
-                const latestCompletedScan = (scans || []).find((s: any) => s.status === 'completed') || null;
-                const latestScan = latestCompletedScan || (scans || [])[0] || null;
+        // Build lookup maps
+        const scanCountsByType = { smells: new Map(), bugs: new Map(), security: new Map() };
+        const readmesByRepoId = new Map((readmeData.data || []).map((r: any) => [r.repo_id, true]));
+        const snapshotsByRepoId = new Map();
 
-                if (!latestCompletedScan) {
-                    return {
-                        id: dbRepo.id,
-                        github_repo_id: String(ghRepo.id),
-                        owner_username: ghRepo.owner.login,
-                        name: ghRepo.name,
-                        full_name: ghRepo.full_name,
-                        is_private: ghRepo.private,
-                        language: ghRepo.language || 'Unknown',
-                        stars: ghRepo.stargazers_count,
-                        forks: ghRepo.forks_count,
-                        watchers: ghRepo.watchers_count,
-                        open_issues: ghRepo.open_issues_count,
-                        description: ghRepo.description,
-                        default_branch: ghRepo.default_branch,
-                        last_pushed_at: ghRepo.pushed_at,
-                        scanned: false,
-                        lastScanDate: null,
-                        scanStatus: latestScan?.status || null,
-                        stats: null,
-                    };
-                }
+        codeSmellsData.data?.forEach((item: any) => scanCountsByType.smells.set(item.repo_scan_id, item));
+        bugsData.data?.forEach((item: any) => scanCountsByType.bugs.set(item.repo_scan_id, item));
+        securityData.data?.forEach((item: any) => scanCountsByType.security.set(item.repo_scan_id, item));
+        (snapshotData.data || []).forEach((item: any) => {
+            if (!snapshotsByRepoId.has(item.repo_scan_id)) {
+                snapshotsByRepoId.set(item.repo_scan_id, item);
+            }
+        });
 
-                // Get stats for this scan
-                const [codeSmells, bugs, security, readme, snapshot] = await Promise.all([
-                    supabase.from('code_smells').select('*', { count: 'exact', head: true }).eq('repo_scan_id', latestCompletedScan.id),
-                    supabase.from('bugs').select('*', { count: 'exact', head: true }).eq('repo_scan_id', latestCompletedScan.id),
-                    supabase.from('security_issues').select('*', { count: 'exact', head: true }).eq('repo_scan_id', latestCompletedScan.id),
-                    supabase.from('readme_generations').select('id').eq('repo_id', dbRepo.id).limit(1).maybeSingle(),
-                    supabase.from('scan_snapshots').select('metrics').eq('repo_scan_id', latestCompletedScan.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-                ]);
+        const reposWithStats = githubRepos.map((ghRepo) => {
+            const dbRepo = dbRepoByFullName.get(ghRepo.full_name);
 
-                const snapshotSmells = Array.isArray(snapshot.data?.metrics?.findings?.code_smells)
-                    ? snapshot.data.metrics.findings.code_smells.length
-                    : 0;
-                const snapshotBugs = Array.isArray(snapshot.data?.metrics?.findings?.bugs)
-                    ? snapshot.data.metrics.findings.bugs.length
-                    : 0;
-                const snapshotSecurity = Array.isArray(snapshot.data?.metrics?.findings?.security_issues)
-                    ? snapshot.data.metrics.findings.security_issues.length
-                    : 0;
+            if (!dbRepo) {
+                return {
+                    id: `gh-${ghRepo.id}`,
+                    github_repo_id: String(ghRepo.id),
+                    owner_username: ghRepo.owner.login,
+                    name: ghRepo.name,
+                    full_name: ghRepo.full_name,
+                    is_private: ghRepo.private,
+                    language: ghRepo.language || 'Unknown',
+                    stars: ghRepo.stargazers_count,
+                    forks: ghRepo.forks_count,
+                    watchers: ghRepo.watchers_count,
+                    open_issues: ghRepo.open_issues_count,
+                    description: ghRepo.description,
+                    default_branch: ghRepo.default_branch,
+                    last_pushed_at: ghRepo.pushed_at,
+                    scanned: false,
+                    lastScanDate: null,
+                    stats: null,
+                };
+            }
 
-                const smellCount = (codeSmells.count || 0) > 0 ? (codeSmells.count || 0) : snapshotSmells;
-                const bugCount = (bugs.count || 0) > 0 ? (bugs.count || 0) : snapshotBugs;
-                const securityCount = (security.count || 0) > 0 ? (security.count || 0) : snapshotSecurity;
-
+            const latestScan = latestScanByRepoId.get(dbRepo.id);
+            if (!latestScan || latestScan.status !== 'completed') {
                 return {
                     id: dbRepo.id,
                     github_repo_id: String(ghRepo.id),
@@ -221,18 +209,44 @@ export async function GET() {
                     description: ghRepo.description,
                     default_branch: ghRepo.default_branch,
                     last_pushed_at: ghRepo.pushed_at,
-                    scanned: true,
-                    lastScanDate: latestCompletedScan.created_at,
-                    scanStatus: latestScan?.status || latestCompletedScan.status,
-                    stats: {
-                        code_smells: smellCount,
-                        bugs: bugCount,
-                        security_issues: securityCount,
-                        has_readme: !!readme.data,
-                    },
+                    scanned: false,
+                    lastScanDate: null,
+                    scanStatus: latestScan?.status || null,
+                    stats: null,
                 };
-            })
-        );
+            }
+
+            const snapshot = snapshotsByRepoId.get(latestScan.id);
+            const snapshotSmells = Array.isArray(snapshot?.metrics?.findings?.code_smells) ? snapshot.metrics.findings.code_smells.length : 0;
+            const snapshotBugs = Array.isArray(snapshot?.metrics?.findings?.bugs) ? snapshot.metrics.findings.bugs.length : 0;
+            const snapshotSecurity = Array.isArray(snapshot?.metrics?.findings?.security_issues) ? snapshot.metrics.findings.security_issues.length : 0;
+
+            return {
+                id: dbRepo.id,
+                github_repo_id: String(ghRepo.id),
+                owner_username: ghRepo.owner.login,
+                name: ghRepo.name,
+                full_name: ghRepo.full_name,
+                is_private: ghRepo.private,
+                language: ghRepo.language || 'Unknown',
+                stars: ghRepo.stargazers_count,
+                forks: ghRepo.forks_count,
+                watchers: ghRepo.watchers_count,
+                open_issues: ghRepo.open_issues_count,
+                description: ghRepo.description,
+                default_branch: ghRepo.default_branch,
+                last_pushed_at: ghRepo.pushed_at,
+                scanned: true,
+                lastScanDate: latestScan.created_at,
+                scanStatus: latestScan.status,
+                stats: {
+                    code_smells: snapshotSmells || 0,
+                    bugs: snapshotBugs || 0,
+                    security_issues: snapshotSecurity || 0,
+                    has_readme: !!readmesByRepoId.get(dbRepo.id),
+                },
+            };
+        });
 
         return NextResponse.json({ repos: reposWithStats, authMode });
     } catch (error: any) {

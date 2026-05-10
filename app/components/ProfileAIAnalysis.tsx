@@ -57,7 +57,7 @@ const ProfileAIAnalysis = ({ analysis }: { analysis: Analysis | null }) => {
         <div className="space-y-12 animate-in fade-in duration-700">
 
             {/* ================= HERO VERDICT ================= */}
-            <section className="bg-gradient-to-br from-slate-900 to-black border border-slate-700 text-slate-100 rounded-3xl p-8 md:p-10 shadow-xl">
+            <section className="bg-linear-to-br from-slate-900 to-black border border-slate-700 text-slate-100 rounded-3xl p-8 md:p-10 shadow-xl">
                 <span className="inline-block bg-indigo-500/20 text-indigo-300 px-4 py-1 rounded-full text-sm font-bold border border-indigo-500/30">
                     Level: {verdict.level}
                 </span>
@@ -103,7 +103,7 @@ const ProfileAIAnalysis = ({ analysis }: { analysis: Analysis | null }) => {
             </section>
 
             {/* ================= RADAR ================= */}
-            <section className="p-8 rounded-3xl border bg-gradient-to-b from-slate-900 to-black border-slate-700">
+            <section className="p-8 rounded-3xl border bg-linear-to-b from-slate-900 to-black border-slate-700">
                 <h2 className="text-xl font-bold mb-8 text-indigo-400">
                     🕸️ Skill Distribution Overview
                 </h2>

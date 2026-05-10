@@ -19,7 +19,7 @@ export async function GET() {
             .eq('user_id', userId)
             .single()
 
-        // Get total bugs found
+        // Get all scans for this user once
         const { data: scans } = await supabase
             .from('repo_scans')
             .select('id')
@@ -27,25 +27,26 @@ export async function GET() {
 
         const scanIds = scans?.map((s) => s.id) || []
 
+        // Batch fetch all counts in parallel
         let bugsCount = 0
         let securityCount = 0
         let smellsCount = 0
 
         if (scanIds.length > 0) {
-            const { count: bugs } = await supabase
-                .from('bugs')
-                .select('*', { count: 'exact', head: true })
-                .in('repo_scan_id', scanIds)
-
-            const { count: security } = await supabase
-                .from('security_issues')
-                .select('*', { count: 'exact', head: true })
-                .in('repo_scan_id', scanIds)
-
-            const { count: smells } = await supabase
-                .from('code_smells')
-                .select('*', { count: 'exact', head: true })
-                .in('repo_scan_id', scanIds)
+            const [{ count: bugs }, { count: security }, { count: smells }] = await Promise.all([
+                supabase
+                    .from('bugs')
+                    .select('*', { count: 'exact', head: true })
+                    .in('repo_scan_id', scanIds),
+                supabase
+                    .from('security_issues')
+                    .select('*', { count: 'exact', head: true })
+                    .in('repo_scan_id', scanIds),
+                supabase
+                    .from('code_smells')
+                    .select('*', { count: 'exact', head: true })
+                    .in('repo_scan_id', scanIds),
+            ])
 
             bugsCount = bugs || 0
             securityCount = security || 0
