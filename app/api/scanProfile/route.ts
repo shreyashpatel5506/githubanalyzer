@@ -10,6 +10,13 @@ import { createAdminClient } from '@/app/lib/supabase';
 import { getSessionUser } from '@/app/lib/auth-server';
 import { PLAN_LIMITS } from '@/app/lib/billing';
 import { resolveUserPlan } from '@/app/lib/entitlements';
+import { 
+    createGuestSession, 
+    verifyGuestSession, 
+    extractGuestToken, 
+    createClaimToken 
+} from '@/app/lib/guest-session';
+import { sendBrevoEmail } from '@/app/lib/brevo';
 
 async function fetchExactContributions(username: string, headers: any) {
     const fromDate = new Date(
@@ -52,17 +59,45 @@ async function fetchExactContributions(username: string, headers: any) {
 
 export async function POST(req: Request) {
     try {
-        const sessionUser = await getSessionUser();
-        const userId = sessionUser?.userId;
-        if (!userId) {
-            return NextResponse.json(
-                { error: 'Please sign in to use profile scan and track your limits.' },
-                { status: 401 }
-            );
+        const body = await req.json();
+        const { username, token, email: guestEmail } = body;
+
+        // Get authenticated user (if any)
+        let sessionUser = null;
+        let userId: string | null = null;
+        let isGuest = false;
+        let guestId: string | null = null;
+        let guestToken: string | null = null;
+
+        try {
+            sessionUser = await getSessionUser();
+            userId = sessionUser?.userId || null;
+        } catch {
+            userId = null;
         }
 
-        const body = await req.json();
-        const { username, token } = body;
+        // If no authenticated user, check for guest session
+        if (!userId) {
+            const authHeader = req.headers.get('Authorization');
+            if (authHeader) {
+                const token = extractGuestToken(authHeader);
+                if (token) {
+                    const guestSession = verifyGuestSession(token);
+                    if (guestSession) {
+                        guestId = guestSession.guestId;
+                        isGuest = true;
+                    }
+                }
+            }
+
+            // If no valid guest session, create a new one
+            if (!isGuest) {
+                const newGuestSession = createGuestSession(guestEmail);
+                guestId = newGuestSession.guestId;
+                guestToken = newGuestSession.token;
+                isGuest = true;
+            }
+        }
 
         // 1. Validate Input
         const validation = validateUsername(username);
@@ -89,10 +124,6 @@ export async function POST(req: Request) {
             );
         }
 
-        const supabase = createAdminClient();
-        const planKey = await resolveUserPlan(userId, supabase);
-        const planLimits = PLAN_LIMITS[planKey as keyof typeof PLAN_LIMITS] || PLAN_LIMITS.free;
-
         const githubUserId = profileData.data.id?.toString();
         if (!githubUserId) {
             return NextResponse.json(
@@ -101,44 +132,51 @@ export async function POST(req: Request) {
             );
         }
 
-        const { data: existingScan } = await supabase
-            .from('scanned_profiles')
-            .select('id')
-            .eq('github_user_id', githubUserId)
-            .eq('scanned_by_user_id', userId)
-            .maybeSingle();
+        // Check plan limits (only for authenticated users)
+        if (userId) {
+            const supabase = createAdminClient();
+            const planKey = await resolveUserPlan(userId, supabase);
+            const planLimits = PLAN_LIMITS[planKey as keyof typeof PLAN_LIMITS] || PLAN_LIMITS.free;
 
-        if (!existingScan) {
-            const startOfMonth = new Date();
-            startOfMonth.setDate(1);
-            startOfMonth.setHours(0, 0, 0, 0);
-
-            const { count: profileScanCount, error: profileScanCountError } = await supabase
+            const { data: existingScan } = await supabase
                 .from('scanned_profiles')
-                .select('*', { count: 'exact', head: true })
+                .select('id')
+                .eq('github_user_id', githubUserId)
                 .eq('scanned_by_user_id', userId)
-                .gte('created_at', startOfMonth.toISOString());
+                .maybeSingle();
 
-            if (profileScanCountError) {
-                return NextResponse.json(
-                    { error: `Failed to validate profile scan limit: ${profileScanCountError.message}` },
-                    { status: 500 }
-                );
-            }
+            if (!existingScan) {
+                const startOfMonth = new Date();
+                startOfMonth.setDate(1);
+                startOfMonth.setHours(0, 0, 0, 0);
 
-            const limit = Number(planLimits.profile_scan);
-            const used = profileScanCount || 0;
+                const { count: profileScanCount, error: profileScanCountError } = await supabase
+                    .from('scanned_profiles')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('scanned_by_user_id', userId)
+                    .gte('created_at', startOfMonth.toISOString());
 
-            if (limit !== -1 && used >= limit) {
-                return NextResponse.json(
-                    {
-                        error: 'Profile scan limit reached for your plan. Please upgrade to continue.',
-                        limit,
-                        used,
-                        plan: planKey,
-                    },
-                    { status: 403 }
-                );
+                if (profileScanCountError) {
+                    return NextResponse.json(
+                        { error: `Failed to validate profile scan limit: ${profileScanCountError.message}` },
+                        { status: 500 }
+                    );
+                }
+
+                const limit = Number(planLimits.profile_scan);
+                const used = profileScanCount || 0;
+
+                if (limit !== -1 && used >= limit) {
+                    return NextResponse.json(
+                        {
+                            error: 'Profile scan limit reached for your plan. Please upgrade to continue.',
+                            limit,
+                            used,
+                            plan: planKey,
+                        },
+                        { status: 403 }
+                    );
+                }
             }
         }
 
@@ -161,6 +199,8 @@ export async function POST(req: Request) {
 
         // 4. Store in Supabase
 
+        const supabase = createAdminClient();
+
         // Upsert scanned_profile
         const { data: scannedProfile, error: profileError } = await supabase
             .from('scanned_profiles')
@@ -168,9 +208,23 @@ export async function POST(req: Request) {
                 github_user_id: githubUserId,
                 username: profileData.data.login,
                 profile_metadata: profileData.data,
-                scanned_by_user_id: userId,
+                profile_scan_result: {
+                    contributions: finalContributions,
+                    repos: repos,
+                    stats: {
+                        pullRequests: finalContributions.totalPullRequestContributions,
+                        commits: finalContributions.totalCommitContributions,
+                        issues: finalContributions.totalIssueContributions,
+                        activeRepositories: repos.filter((r: any) => new Date(r.pushed_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length,
+                    },
+                    scannedAt: new Date().toISOString(),
+                },
+                scanned_by_user_id: userId || null,
+                guest_id: isGuest ? guestId : null,
                 last_scanned_at: new Date().toISOString(),
-            }, { onConflict: 'github_user_id' })
+            }, { 
+                onConflict: userId ? 'github_user_id,scanned_by_user_id' : 'github_user_id,guest_id'
+            })
             .select()
             .single();
 
@@ -203,25 +257,37 @@ export async function POST(req: Request) {
             if (insertError) {
                 console.error("Error storing scanned repos:", insertError);
             }
+
+            // If guest, send invite email
+            if (isGuest && guestEmail && guestId) {
+                const claimToken = createClaimToken(guestId, guestEmail);
+                const claimLink = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://gitprofileai.vercel.app'}/auth/guest-claim?token=${claimToken}`;
+
+                await sendBrevoEmail({
+                    email: guestEmail,
+                    magicLink: claimLink,
+                    guestId,
+                });
+            }
         }
 
         return NextResponse.json({
+            success: true,
             profile: profileData.data,
             contributions: finalContributions,
             repos: repos,
-            // Calculate some convenient stats for the frontend
+            guestToken: guestToken || undefined, // Return guest token if created new session
+            guestId: isGuest ? guestId : undefined,
+            userId: userId || undefined,
+            isGuest,
             pullRequests: {
-                open: finalContributions.totalPullRequestContributions, // This is total, not open/merged split perfectly from this API, but used as placeholder
-                merged: 0, // GraphQL implementation above only gets `totalPullRequestContributions`. 
-                // If we want "merged", we'd need a more complex query. 
-                // For now, mapping 'total' to 'open' as a rough proxy or just creating the shape the frontend expects.
-                // The frontend expects `pullRequests.open` and `pullRequests.merged`.
-                // The `fetchExactContributions` returns total. 
-                // I'll map total to `mapped_total` and 0 to merged for now, or just pass `total`.
+                total: finalContributions.totalPullRequestContributions,
+                commits: finalContributions.totalCommitContributions,
+                issues: finalContributions.totalIssueContributions,
             },
             recentActivity: {
                 commits: finalContributions.totalCommitContributions,
-                activeRepositories: repos.filter((r: any) => new Date(r.pushed_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length, // Active in last 30 days
+                activeRepositories: repos.filter((r: any) => new Date(r.pushed_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length,
             }
         });
 
