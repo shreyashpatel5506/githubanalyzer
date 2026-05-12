@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ScanResultCard from '@/app/components/ScanResultCard';
 import FullScanResult from '@/app/components/FullScanResult';
@@ -18,6 +18,7 @@ interface ScanData {
   username: string;
   profile_metadata?: any;
   profile_scan_result?: any;
+  scanned_repositories?: any[];
   last_scanned_at: string;
   created_at: string;
   repo_count: number;
@@ -29,10 +30,10 @@ interface ScanData {
   plan_visibility?: 'full' | 'partial' | 'limited';
 }
 
-export default function ScanResultsPage() {
+function ScanResultsContent() {
   const searchParams = useSearchParams();
-  const { session } = useSessionAuth();
-  const guestToken = searchParams.get('guestToken') || sessionStorage.getItem('guestToken');
+  const { isLoaded, isSignedIn, user } = useSessionAuth();
+  const [guestToken, setGuestToken] = useState<string | null>(null);
 
   const [scans, setScans] = useState<ScanData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,11 +46,33 @@ export default function ScanResultsPage() {
   const limit = 10;
 
   useEffect(() => {
-    // Store guest token in sessionStorage if provided
-    if (guestToken) {
-      sessionStorage.setItem('guestToken', guestToken);
+    if (typeof window === 'undefined') {
+      return;
     }
-  }, [guestToken]);
+
+    const tokenFromUrl = searchParams.get('guestToken');
+    const tokenFromStorage = window.sessionStorage.getItem('guestToken');
+    const nextToken = tokenFromUrl || tokenFromStorage;
+
+    if (tokenFromUrl) {
+      window.sessionStorage.setItem('guestToken', tokenFromUrl);
+    }
+
+    setGuestToken(nextToken);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!isLoaded) {
+      return;
+    }
+
+    if (isSignedIn && user?.userId) {
+      setGuestToken(null);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem('guestToken');
+      }
+    }
+  }, [isLoaded, isSignedIn, user?.userId]);
 
   useEffect(() => {
     fetchScans();
@@ -147,7 +170,7 @@ export default function ScanResultsPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Profile Scans</h1>
         <p className="text-gray-600">
-          {session?.userId ? 'Your saved profile scans' : 'Guest profile scans'}
+          {isSignedIn ? 'Your saved profile scans' : 'Guest profile scans'}
         </p>
       </div>
 
@@ -237,5 +260,22 @@ export default function ScanResultsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ScanResultsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto max-w-5xl px-4 py-12">
+          <div className="flex flex-col items-center justify-center min-h-96">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
+            <p className="text-gray-600">Loading your scan results...</p>
+          </div>
+        </div>
+      }
+    >
+      <ScanResultsContent />
+    </Suspense>
   );
 }
