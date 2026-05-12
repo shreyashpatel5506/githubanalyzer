@@ -6,6 +6,15 @@ import { createRazorpayClient, getRazorpayCurrency, getRazorpayKeyId, getRazorpa
 
 export const runtime = 'nodejs';
 
+function buildRazorpayReceipt(userId: string, planKey: string): string {
+    const safePlan = planKey.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10) || 'plan';
+    const userTail = userId.replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'user';
+    const stamp = Date.now().toString(36).slice(-8);
+
+    // Razorpay receipt max length is 40 chars.
+    return `cc_${safePlan}_${userTail}_${stamp}`.slice(0, 40);
+}
+
 export async function POST(req: Request) {
     try {
         const user = await getSessionUser();
@@ -48,7 +57,7 @@ export async function POST(req: Request) {
         const order = await razorpay.orders.create({
             amount: amountInPaise,
             currency: getRazorpayCurrency(),
-            receipt: `clarity_${user.userId}_${planKey}_${Date.now()}`,
+            receipt: buildRazorpayReceipt(user.userId, planKey),
             notes: {
                 user_id: user.userId,
                 plan_key: planKey,
@@ -72,11 +81,18 @@ export async function POST(req: Request) {
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to create Razorpay order';
+        const providerError = error && typeof error === 'object' && 'error' in error
+            ? (error as { error?: { code?: string; description?: string; reason?: string } }).error
+            : undefined;
+
         const details = error && typeof error === 'object'
             ? {
                 code: 'code' in error ? String((error as { code?: unknown }).code || '') : undefined,
                 statusCode: 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode || 0) : undefined,
                 description: 'description' in error ? String((error as { description?: unknown }).description || '') : undefined,
+                razorpayCode: providerError?.code,
+                razorpayDescription: providerError?.description,
+                razorpayReason: providerError?.reason,
             }
             : undefined;
 
