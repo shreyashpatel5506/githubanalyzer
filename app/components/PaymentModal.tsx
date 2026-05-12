@@ -3,6 +3,42 @@
 import React, { useState } from "react";
 import { X, CreditCard, Check } from "lucide-react";
 
+type RazorpayResponse = {
+    razorpay_order_id?: string;
+    razorpay_payment_id?: string;
+    razorpay_signature?: string;
+};
+
+let razorpayScriptPromise: Promise<boolean> | null = null;
+
+function loadRazorpayScript(): Promise<boolean> {
+    if (typeof window === "undefined") return Promise.resolve(false);
+    const checkoutWindow = window as Window & {
+        Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+    };
+
+    if (checkoutWindow.Razorpay) return Promise.resolve(true);
+    if (razorpayScriptPromise) return razorpayScriptPromise;
+
+    razorpayScriptPromise = new Promise((resolve) => {
+        const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+        if (existingScript) {
+            existingScript.addEventListener("load", () => resolve(true), { once: true });
+            existingScript.addEventListener("error", () => resolve(false), { once: true });
+            return;
+        }
+
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+
+    return razorpayScriptPromise;
+}
+
 interface PaymentModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -14,6 +50,8 @@ interface PaymentModalProps {
 export default function PaymentModal({ isOpen, onClose, planKey, planName, price }: PaymentModalProps) {
     const [processing, setProcessing] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
+    const razorpayMode = (process.env.NEXT_PUBLIC_RAZORPAY_MODE || "test").toLowerCase();
+    const isTestMode = razorpayMode !== "live";
 
     if (!isOpen) return null;
 
@@ -42,7 +80,14 @@ export default function PaymentModal({ isOpen, onClose, planKey, planName, price
                 return;
             }
 
-            const orderRes = await fetch("/api/payments/paypal/create-order", {
+            const scriptLoaded = await loadRazorpayScript();
+            if (!scriptLoaded) {
+                alert("Razorpay checkout could not be loaded.");
+                setProcessing(false);
+                return;
+            }
+
+            const orderRes = await fetch("/api/payments/razorpay/create-order", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ planKey }),
@@ -55,13 +100,71 @@ export default function PaymentModal({ isOpen, onClose, planKey, planName, price
                 return;
             }
 
-            if (!orderData.approveUrl) {
-                alert("PayPal approval URL not received.");
+            if (orderData.mode === "test") {
+                setMessage("Test mode active: no real money will be charged.");
+            }
+
+            const checkoutWindow = window as Window & {
+                Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+            };
+
+            const RazorpayCtor = checkoutWindow.Razorpay;
+            if (!RazorpayCtor) {
+                alert("Razorpay checkout is unavailable.");
                 setProcessing(false);
                 return;
             }
 
-            window.location.href = orderData.approveUrl;
+            const options = {
+                key: orderData.keyId,
+                amount: orderData.amount,
+                currency: orderData.currency,
+                name: orderData.name || "ClarityCode",
+                description: orderData.description || `${planName} subscription`,
+                order_id: orderData.orderId,
+                prefill: orderData.prefill,
+                theme: {
+                    color: "#7c3aed",
+                },
+                modal: {
+                    ondismiss: () => {
+                        setProcessing(false);
+                    },
+                },
+                handler: async (response: RazorpayResponse) => {
+                    try {
+                        const verifyRes = await fetch("/api/payments/razorpay/verify", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature,
+                                planKey,
+                            }),
+                        });
+
+                        const verifyData = await verifyRes.json();
+                        if (!verifyRes.ok) {
+                            alert(verifyData.error || "Payment verification failed");
+                            setProcessing(false);
+                            return;
+                        }
+
+                        setMessage(verifyData.message || "Payment verified successfully.");
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } catch (verifyError) {
+                        console.error(verifyError);
+                        alert("Payment verification failed");
+                        setProcessing(false);
+                    }
+                },
+            };
+
+            const rzp = new RazorpayCtor(options);
+            rzp.open();
             return;
         } catch (err) {
             console.error(err);
@@ -100,9 +203,15 @@ export default function PaymentModal({ isOpen, onClose, planKey, planName, price
                             </div>
                             <div className="border-t border-white/20 pt-4 flex items-center justify-between">
                                 <span className="text-xl font-bold text-white">Total</span>
-                                <span className="text-3xl font-bold text-purple-400">${price}/mo</span>
+                                <span className="text-3xl font-bold text-purple-400">₹{price}/mo</span>
                             </div>
                         </div>
+
+                        {isTestMode && (
+                            <div className="mb-6 rounded-lg border border-yellow-400/40 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">
+                                Razorpay test mode is active. This will not collect real money.
+                            </div>
+                        )}
 
                         {/* Features Included */}
                         <div className="mb-6">
@@ -162,7 +271,7 @@ export default function PaymentModal({ isOpen, onClose, planKey, planName, price
                             className="w-full bg-linear-to-r from-purple-500 to-pink-500 text-white py-4 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                         >
                             <CreditCard size={20} />
-                            {processing ? "Processing..." : planKey === "free" ? "Switch to Free" : `Pay $${price}/month`}
+                            {processing ? "Processing..." : planKey === "free" ? "Switch to Free" : `Pay $${price}/month via Razorpay`}
                         </button>
 
                         {message && (
@@ -172,7 +281,7 @@ export default function PaymentModal({ isOpen, onClose, planKey, planName, price
                         <p className="text-xs text-gray-400 text-center mt-4">
                             {planKey === "free"
                                 ? "Free plan activates instantly in Supabase."
-                                : "Payment is processed by PayPal and your plan activates after successful capture."}
+                                : "Payment is processed by Razorpay and your plan activates after successful verification."}
                         </p>
                 </>
             </div>
