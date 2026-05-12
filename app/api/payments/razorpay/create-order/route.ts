@@ -4,6 +4,8 @@ import { createAdminClient } from '@/app/lib/supabase';
 import { getSessionUser } from '@/app/lib/auth-server';
 import { createRazorpayClient, getRazorpayCurrency, getRazorpayKeyId, getRazorpayMode } from '@/app/lib/razorpay';
 
+export const runtime = 'nodejs';
+
 export async function POST(req: Request) {
     try {
         const user = await getSessionUser();
@@ -70,6 +72,22 @@ export async function POST(req: Request) {
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to create Razorpay order';
-        return NextResponse.json({ error: message }, { status: 500 });
+        const details = error && typeof error === 'object'
+            ? {
+                code: 'code' in error ? String((error as { code?: unknown }).code || '') : undefined,
+                statusCode: 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode || 0) : undefined,
+                description: 'description' in error ? String((error as { description?: unknown }).description || '') : undefined,
+            }
+            : undefined;
+
+        console.error('[RAZORPAY_CREATE_ORDER_FAILED]', {
+            message,
+            details,
+        });
+
+        return NextResponse.json({
+            error: message,
+            details,
+        }, { status: 500 });
     }
 }

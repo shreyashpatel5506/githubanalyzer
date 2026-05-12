@@ -5,6 +5,8 @@ import { setUserPlan } from '@/app/lib/entitlements';
 import { PLAN_LIMITS } from '@/app/lib/billing';
 import { verifyRazorpaySignature } from '@/app/lib/razorpay';
 
+export const runtime = 'nodejs';
+
 export async function POST(req: Request) {
     try {
         const sessionUser = await getSessionUser();
