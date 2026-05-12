@@ -113,7 +113,7 @@ export default function PlansPage() {
                                 </h3>
                                 <div className="my-4 flex items-baseline">
                                     <span className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                                        ${Number(plan.price_monthly).toFixed(0)}
+                                        ₹{Number(plan.price_monthly).toFixed(0)}
                                     </span>
                                     {Number(plan.price_monthly) > 0 && (
                                         <span className="ml-1 text-lg font-normal text-zinc-500">/month</span>

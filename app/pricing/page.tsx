@@ -18,14 +18,14 @@ const plans = [
     {
         key: "pro",
         name: "Pro",
-        price: 18,
+        price: 15,
         subtitle: "Best for active solo builders",
         features: ["Unlimited repo scans", "20 profile scans", "Bug + security detection", "Advanced AI recommendations"],
     },
     {
         key: "pro_plus",
         name: "Pro Plus",
-        price: 50,
+        price: 85,
         subtitle: "For teams and power users",
         features: ["Everything unlimited", "Deep analysis priority", "Auto PR publishing", "Premium support"],
     },
@@ -134,7 +134,7 @@ function PricingPageContent() {
                                 <p className="text-sm text-gray-500 dark:text-gray-400">{plan.subtitle}</p>
 
                                 <div className="flex items-end gap-1">
-                                    <span className="text-4xl font-black text-gray-900 dark:text-white">${plan.price}</span>
+                                    <span className="text-4xl font-black text-gray-900 dark:text-white">₹{plan.price}</span>
                                     <span className="text-gray-500 dark:text-gray-400 mb-1">{plan.price > 0 ? "/month" : "forever"}</span>
                                 </div>
 

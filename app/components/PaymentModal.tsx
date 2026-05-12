@@ -221,19 +221,19 @@ export default function PaymentModal({ isOpen, onClose, planKey, planName, price
                                     <>
                                         <div className="flex items-center gap-2 text-gray-300">
                                             <Check size={16} className="text-green-400" />
-                                            <span>100 repository scans/month</span>
+                                            <span>Unlimited repository scans</span>
                                         </div>
                                         <div className="flex items-center gap-2 text-gray-300">
                                             <Check size={16} className="text-green-400" />
-                                            <span>Bug detection & security scanning</span>
+                                            <span>20 profile scans/month</span>
                                         </div>
                                         <div className="flex items-center gap-2 text-gray-300">
                                             <Check size={16} className="text-green-400" />
-                                            <span>10 README generations/month</span>
+                                            <span>20 README generations/month</span>
                                         </div>
                                         <div className="flex items-center gap-2 text-gray-300">
                                             <Check size={16} className="text-green-400" />
-                                            <span>PR draft creation</span>
+                                            <span>50 ESLint analyses/month</span>
                                         </div>
                                     </>
                                 )}
@@ -245,7 +245,7 @@ export default function PaymentModal({ isOpen, onClose, planKey, planName, price
                                         </div>
                                         <div className="flex items-center gap-2 text-gray-300">
                                             <Check size={16} className="text-green-400" />
-                                            <span>Advanced bug & security scanning</span>
+                                            <span>Unlimited profile scans</span>
                                         </div>
                                         <div className="flex items-center gap-2 text-gray-300">
                                             <Check size={16} className="text-green-400" />
@@ -253,11 +253,11 @@ export default function PaymentModal({ isOpen, onClose, planKey, planName, price
                                         </div>
                                         <div className="flex items-center gap-2 text-gray-300">
                                             <Check size={16} className="text-green-400" />
-                                            <span>Auto-publish PRs to GitHub</span>
+                                            <span>Unlimited ESLint analyses</span>
                                         </div>
                                         <div className="flex items-center gap-2 text-gray-300">
                                             <Check size={16} className="text-green-400" />
-                                            <span>Priority support</span>
+                                            <span>Auto-publish PRs to GitHub</span>
                                         </div>
                                     </>
                                 )}
@@ -271,7 +271,7 @@ export default function PaymentModal({ isOpen, onClose, planKey, planName, price
                             className="w-full bg-linear-to-r from-purple-500 to-pink-500 text-white py-4 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                         >
                             <CreditCard size={20} />
-                            {processing ? "Processing..." : planKey === "free" ? "Switch to Free" : `Pay $${price}/month via Razorpay`}
+                            {processing ? "Processing..." : planKey === "free" ? "Switch to Free" : `Pay ₹${price}/month via Razorpay`}
                         </button>
 
                         {message && (

@@ -8,6 +8,8 @@ import {
 } from '../lib/githubhelper';
 import { createAdminClient } from '@/app/lib/supabase';
 import { getSessionUser } from '@/app/lib/auth-server';
+import { PLAN_LIMITS } from '@/app/lib/billing';
+import { resolveUserPlan } from '@/app/lib/entitlements';
 
 async function fetchExactContributions(username: string, headers: any) {
     const fromDate = new Date(
@@ -52,6 +54,13 @@ export async function POST(req: Request) {
     try {
         const sessionUser = await getSessionUser();
         const userId = sessionUser?.userId;
+        if (!userId) {
+            return NextResponse.json(
+                { error: 'Please sign in to use profile scan and track your limits.' },
+                { status: 401 }
+            );
+        }
+
         const body = await req.json();
         const { username, token } = body;
 
@@ -80,6 +89,59 @@ export async function POST(req: Request) {
             );
         }
 
+        const supabase = createAdminClient();
+        const planKey = await resolveUserPlan(userId, supabase);
+        const planLimits = PLAN_LIMITS[planKey as keyof typeof PLAN_LIMITS] || PLAN_LIMITS.free;
+
+        const githubUserId = profileData.data.id?.toString();
+        if (!githubUserId) {
+            return NextResponse.json(
+                { error: 'Invalid GitHub profile payload: missing user id' },
+                { status: 500 }
+            );
+        }
+
+        const { data: existingScan } = await supabase
+            .from('scanned_profiles')
+            .select('id')
+            .eq('github_user_id', githubUserId)
+            .eq('scanned_by_user_id', userId)
+            .maybeSingle();
+
+        if (!existingScan) {
+            const startOfMonth = new Date();
+            startOfMonth.setDate(1);
+            startOfMonth.setHours(0, 0, 0, 0);
+
+            const { count: profileScanCount, error: profileScanCountError } = await supabase
+                .from('scanned_profiles')
+                .select('*', { count: 'exact', head: true })
+                .eq('scanned_by_user_id', userId)
+                .gte('created_at', startOfMonth.toISOString());
+
+            if (profileScanCountError) {
+                return NextResponse.json(
+                    { error: `Failed to validate profile scan limit: ${profileScanCountError.message}` },
+                    { status: 500 }
+                );
+            }
+
+            const limit = Number(planLimits.profile_scan);
+            const used = profileScanCount || 0;
+
+            if (limit !== -1 && used >= limit) {
+                return NextResponse.json(
+                    {
+                        error: 'Profile scan limit reached for your plan. Please upgrade to continue.',
+                        limit,
+                        used,
+                        plan: planKey,
+                    },
+                    { status: 403 }
+                );
+            }
+        }
+
         // 3. Fetch Contributions & Repos (Parallel)
         const [contributions, reposRes] = await Promise.all([
             fetchExactContributions(safeUsername, headers),
@@ -98,16 +160,15 @@ export async function POST(req: Request) {
         };
 
         // 4. Store in Supabase
-        const supabase = createAdminClient();
 
         // Upsert scanned_profile
         const { data: scannedProfile, error: profileError } = await supabase
             .from('scanned_profiles')
             .upsert({
-                github_user_id: profileData.data.id.toString(),
+                github_user_id: githubUserId,
                 username: profileData.data.login,
                 profile_metadata: profileData.data,
-                scanned_by_user_id: userId || null,
+                scanned_by_user_id: userId,
                 last_scanned_at: new Date().toISOString(),
             }, { onConflict: 'github_user_id' })
             .select()

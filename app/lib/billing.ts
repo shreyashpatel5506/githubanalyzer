@@ -62,8 +62,8 @@ export const PLAN_LIMITS = {
 
 export const PLAN_PRICES: Record<keyof typeof PLAN_LIMITS, number> = {
     free: 0,
-    pro: 18,
-    pro_plus: 50,
+    pro: 15,
+    pro_plus: 85,
 };
 
 export async function syncPlansCatalog(): Promise<void> {
