@@ -40,7 +40,7 @@ function envFromCandidates(candidates: string[]): string {
     }
   }
 
-  throw new Error(`${candidates[0]} is missing`);
+  throw new Error(`Missing Razorpay env var. Set one of: ${candidates.join(', ')}`);
 }
 
 export function getRazorpayKeyId(): string {
