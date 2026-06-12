@@ -1,0 +1,167 @@
+import { NextResponse, after } from 'next/server';
+import { headers } from 'next/headers';
+import crypto from 'crypto';
+import { createAdminClient } from '@/app/lib/supabase';
+import { checkAndIncrementLimit, checkGuestLimit } from '@/app/lib/billing';
+import { resolveUserPlan } from '@/app/lib/entitlements';
+import { getSessionUser } from '@/app/lib/auth-server';
+export async function POST(req) {
+    try {
+        const requestOrigin = new URL(req.url).origin;
+        const sessionUser = await getSessionUser();
+        const userId = (sessionUser === null || sessionUser === void 0 ? void 0 : sessionUser.userId) || null;
+        const { repoFullName } = await req.json().catch(() => ({}));
+        if (!repoFullName) {
+            return NextResponse.json({ error: 'Repository name required' }, { status: 400 });
+        }
+        const [owner, repo] = String(repoFullName).split('/');
+        if (!owner || !repo) {
+            return NextResponse.json({ error: 'Invalid repository format. Expected owner/repo' }, { status: 400 });
+        }
+        const supabase = createAdminClient();
+        let plan = 'free';
+        // 1. Identify User & Check Limits
+        if (userId) {
+            plan = await resolveUserPlan(userId, supabase);
+            try {
+                await checkAndIncrementLimit(userId, plan, 'repo_scans');
+            }
+            catch (e) {
+                return NextResponse.json({ error: e.message }, { status: 403 });
+            }
+        }
+        else {
+            // Guest Mode
+            const headersList = await headers();
+            const userAgent = headersList.get('user-agent') || 'unknown';
+            const ip = headersList.get('x-forwarded-for') || '127.0.0.1';
+            const rawId = `${ip}-${userAgent}`;
+            const guestId = crypto.createHash('sha256').update(rawId).digest('hex');
+            try {
+                await checkGuestLimit(guestId);
+            }
+            catch (e) {
+                return NextResponse.json({ error: e.message, isGuestLimit: true }, { status: 403 });
+            }
+        }
+        // 2. Ensure repository row exists
+        let { data: repository } = await supabase
+            .from('repositories')
+            .select('*')
+            .eq('full_name', repoFullName)
+            .maybeSingle();
+        if (!repository) {
+            const { data: newRepo, error: createError } = await supabase
+                .from('repositories')
+                .insert({
+                owner_username: owner,
+                name: repo,
+                full_name: repoFullName,
+                owner_user_id: userId || null,
+                github_repo_id: `temp_${Date.now()}`,
+                is_private: false,
+                language: 'Unknown',
+            })
+                .select()
+                .single();
+            if (createError)
+                throw createError;
+            repository = newRepo;
+        }
+        // 3. Prevent duplicate scans, but recover stale stuck scans
+        const { data: existingScan } = await supabase
+            .from('repo_scans')
+            .select('id, status, created_at, started_at')
+            .eq('repo_id', repository.id)
+            .in('status', ['pending', 'processing'])
+            .maybeSingle();
+        if (existingScan) {
+            const createdAt = new Date(existingScan.created_at || existingScan.started_at || Date.now()).getTime();
+            const isStale = Number.isFinite(createdAt) && (Date.now() - createdAt) > 10 * 60 * 1000;
+            if (isStale) {
+                await supabase
+                    .from('repo_scans')
+                    .update({
+                    status: 'failed',
+                    error_message: 'Previous scan timed out while waiting for worker execution.',
+                    completed_at: new Date().toISOString(),
+                })
+                    .eq('id', existingScan.id)
+                    .in('status', ['pending', 'processing']);
+            }
+            else {
+                return NextResponse.json({
+                    success: true,
+                    scanId: existingScan.id,
+                    message: 'Analysis already in progress for this repository.',
+                    status: existingScan.status,
+                });
+            }
+        }
+        // 4. Create a new scan
+        const { data: scan, error: scanError } = await supabase
+            .from('repo_scans')
+            .insert({
+            repo_id: repository.id,
+            requested_by_user_id: userId || null,
+            status: 'pending',
+            started_at: new Date().toISOString(),
+        })
+            .select()
+            .single();
+        if (scanError)
+            throw scanError;
+        // 5. Trigger worker after response lifecycle
+        const workerUrl = new URL('/api/workers/scan', requestOrigin).toString();
+        after(async () => {
+            try {
+                const workerRes = await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+                    },
+                    body: JSON.stringify({ scanId: scan.id }),
+                });
+                if (!workerRes.ok) {
+                    const detail = await workerRes.text().catch(() => 'No response body');
+                    await supabase
+                        .from('repo_scans')
+                        .update({
+                        status: 'failed',
+                        error_message: `Worker dispatch failed (${workerRes.status}): ${detail.slice(0, 200)}`,
+                        completed_at: new Date().toISOString(),
+                    })
+                        .eq('id', scan.id)
+                        .eq('status', 'pending');
+                }
+            }
+            catch (err) {
+                const message = err instanceof Error ? err.message : 'Unknown dispatch error';
+                console.error('[SCAN ENQUEUE] Worker trigger failed:', message);
+                await supabase
+                    .from('repo_scans')
+                    .update({
+                    status: 'failed',
+                    error_message: `Worker dispatch failed: ${message}`,
+                    completed_at: new Date().toISOString(),
+                })
+                    .eq('id', scan.id)
+                    .eq('status', 'pending');
+            }
+        });
+        return NextResponse.json({
+            success: true,
+            scanId: scan.id,
+            message: 'Repository queued for deep analysis. This may take 30-60 seconds.',
+            status: 'pending',
+        });
+    }
+    catch (error) {
+        console.error('[SCAN ENQUEUE ERROR]:', error);
+        return NextResponse.json({
+            error: 'Failed to queue analysis',
+            details: error.message,
+        }, { status: 500 });
+    }
+}
