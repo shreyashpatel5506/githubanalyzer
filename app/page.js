@@ -142,15 +142,185 @@ export default function HomePage() {
     if (loading) {
         return (_jsx(Layout, { children: _jsx("div", { className: "flex items-center justify-center min-h-[60vh]", children: _jsx("div", { className: "w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" }) }) }));
     }
-    return (_jsxs(Layout, { children: [!data && (_jsxs("div", { className: "max-w-4xl mx-auto px-4 py-20 text-center", children: [_jsx("div", { className: "flex justify-center mb-6", children: _jsx("div", { className: "p-3 bg-emerald-600 rounded-2xl", children: _jsx(Sparkles, { className: "w-8 h-8 text-white" }) }) }), _jsx("h1", { className: "text-5xl font-bold mb-4 text-gray-900 dark:text-white", children: _jsx("span", { className: "text-transparent bg-clip-text bg-linear-to-r from-emerald-500 to-blue-600", children: "ClarityCode" }) }), _jsx("p", { className: "text-gray-500 dark:text-gray-400 mb-10 text-lg", children: "AI-powered GitHub profile analysis with recruiter-grade insights" }), _jsx(SearchBar, { onSearch: handleSearch, loading: loading }), error && _jsx("p", { className: "text-red-500 mt-6 font-medium", children: error })] })), data && (_jsxs("div", { className: "max-w-7xl mx-auto px-4 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500", children: [_jsxs("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4", children: [_jsxs("div", { children: [_jsx("h1", { className: "text-2xl font-bold text-gray-900 dark:text-white", children: "Profile Analysis" }), _jsx("p", { className: "text-gray-500 dark:text-gray-400", children: "Comprehensive GitHub profile evaluation" })] }), _jsxs("div", { className: "flex gap-3", children: [_jsxs("button", { onClick: () => setSharing(true), className: "flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg transition-colors", children: [_jsx(Share2, { className: "w-4 h-4" }), "Share"] }), _jsxs("button", { onClick: handleReset, className: "flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-lg hover:shadow-emerald-500/30", children: [_jsx(RotateCcw, { className: "w-4 h-4" }), "New Analysis"] })] })] }), _jsx(ProfileCard, { profile: data.profile }), _jsx(StatsGrid, { stats: [
-                            { title: "Open PRs", value: data.pullRequests.open, icon: "pullRequests" },
-                            { title: "Merged PRs", value: data.pullRequests.merged, icon: "pullRequests", color: "purple" },
-                            { title: "Commits", value: data.recentActivity.commits, icon: "commits", color: "green" },
-                            {
-                                title: "Active Repos",
-                                value: data.recentActivity.activeRepositories,
-                                icon: "trending",
-                                color: "orange"
-                            },
-                        ] }), aiLoading ? (_jsx(Card, { children: _jsx(CardContent, { className: "text-center py-12", children: _jsxs("div", { className: "flex flex-col items-center justify-center gap-4", children: [_jsx("div", { className: "w-8 h-8 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" }), _jsx("p", { className: "text-gray-500 dark:text-gray-400 animate-pulse", children: "AI Analysis in progress....." })] }) }) })) : (analysis && (_jsx(ProfileAIAnalysis, { analysis: analysis })))] })), _jsx(ShareModal, { isOpen: sharing, onClose: () => setSharing(false), profileUrl: typeof window !== "undefined" ? window.location.href : "", username: ((_a = data === null || data === void 0 ? void 0 : data.profile) === null || _a === void 0 ? void 0 : _a.username) || "" })] }));
-}
+   return (
+  _jsxs(Layout, {
+    children: [
+      !data && (
+        _jsxs("div", {
+          className: "max-w-4xl mx-auto px-4 py-20 text-center",
+          children: [
+            _jsx("div", {
+              className: "flex justify-center mb-6",
+              children: _jsx("div", {
+                className: "p-3 bg-emerald-600 rounded-2xl",
+                children: _jsx(Sparkles, {
+                  className: "w-8 h-8 text-white"
+                })
+              })
+            }),
+
+            _jsx("h1", {
+              className: "text-5xl font-bold mb-4 text-gray-900 dark:text-white",
+              children: _jsx("span", {
+                className:
+                  "text-transparent bg-clip-text bg-linear-to-r from-emerald-500 to-blue-600",
+                children: "ClarityCode"
+              })
+            }),
+
+            _jsx("p", {
+              className:
+                "text-gray-500 dark:text-gray-400 mb-10 text-lg",
+              children:
+                "AI-powered GitHub profile analysis with recruiter-grade insights"
+            }),
+
+            _jsx(SearchBar, {
+              onSearch: handleSearch,
+              loading: loading
+            }),
+
+            error &&
+              _jsx("p", {
+                className: "text-red-500 mt-6 font-medium",
+                children: error
+              })
+          ]
+        })
+      ),
+
+      data && (
+        _jsxs("div", {
+          className:
+            "max-w-7xl mx-auto px-4 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500",
+          children: [
+            _jsxs("div", {
+              className:
+                "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4",
+              children: [
+                _jsxs("div", {
+                  children: [
+                    _jsx("h1", {
+                      className:
+                        "text-2xl font-bold text-gray-900 dark:text-white",
+                      children: "Profile Analysis"
+                    }),
+
+                    _jsx("p", {
+                      className: "text-gray-500 dark:text-gray-400",
+                      children:
+                        "Comprehensive GitHub profile evaluation"
+                    })
+                  ]
+                }),
+
+                _jsxs("div", {
+                  className: "flex gap-3",
+                  children: [
+                    _jsxs("button", {
+                      onClick: () => setSharing(true),
+                      className:
+                        "flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg transition-colors",
+                      children: [
+                        _jsx(Share2, {
+                          className: "w-4 h-4"
+                        }),
+                        "Share"
+                      ]
+                    }),
+
+                    _jsxs("button", {
+                      onClick: handleReset,
+                      className:
+                        "flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-lg hover:shadow-emerald-500/30",
+                      children: [
+                        _jsx(RotateCcw, {
+                          className: "w-4 h-4"
+                        }),
+                        "New Analysis"
+                      ]
+                    })
+                  ]
+                })
+              ]
+            }),
+
+            _jsx(ProfileCard, {
+              profile: data.profile
+            }),
+
+            _jsx(StatsGrid, {
+              stats: [
+                {
+                  title: "Open PRs",
+                  value: data.pullRequests.open,
+                  icon: "pullRequests"
+                },
+                {
+                  title: "Merged PRs",
+                  value: data.pullRequests.merged,
+                  icon: "pullRequests",
+                  color: "purple"
+                },
+                {
+                  title: "Commits",
+                  value: data.recentActivity.commits,
+                  icon: "commits",
+                  color: "green"
+                },
+                {
+                  title: "Active Repos",
+                  value: data.recentActivity.activeRepositories,
+                  icon: "trending",
+                  color: "orange"
+                }
+              ]
+            }),
+
+            aiLoading ? (
+              _jsx(Card, {
+                children: _jsx(CardContent, {
+                  className: "text-center py-12",
+                  children: _jsxs("div", {
+                    className:
+                      "flex flex-col items-center justify-center gap-4",
+                    children: [
+                      _jsx("div", {
+                        className:
+                          "w-8 h-8 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"
+                      }),
+
+                      _jsx("p", {
+                        className:
+                          "text-gray-500 dark:text-gray-400 animate-pulse",
+                        children: "AI Analysis in progress....."
+                      })
+                    ]
+                  })
+                })
+              })
+            ) : (
+              analysis &&
+              _jsx(ProfileAIAnalysis, {
+                analysis: analysis
+              })
+            )
+          ]
+        })
+      ),
+
+      _jsx(ShareModal, {
+        isOpen: sharing,
+        onClose: () => setSharing(false),
+        profileUrl:
+          typeof window !== "undefined"
+            ? window.location.href
+            : "",
+        username:
+          ((_a = data?.profile) === null || _a === void 0
+            ? void 0
+            : _a.username) || ""
+      })
+    ]
+  })
+);
