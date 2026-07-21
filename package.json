@@ -16,10 +16,15 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "chart.js": "^4.5.1",
+<<<<<<< HEAD
     "date-fns": "^4.1.0",
     "groq-sdk": "^0.37.0",
     "html2canvas": "^1.4.1",
     "jsonwebtoken": "^9.0.3",
+=======
+    "groq-sdk": "^0.37.0",
+    "html2canvas": "^1.4.1",
+>>>>>>> 10a2f5d (payment done)
     "jspdf": "^4.1.0",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
@@ -31,6 +36,7 @@
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
     "recharts": "^3.7.0",
+<<<<<<< HEAD
     "uuid": "^14.0.0"
   },
   "devDependencies": {
@@ -40,6 +46,15 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
+=======
+    "supabase": "^2.75.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+>>>>>>> 10a2f5d (payment done)
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
