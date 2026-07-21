@@ -18,14 +18,14 @@ const plans = [
     {
         key: "pro",
         name: "Pro",
-        price: 8,
+        price: 0.20,
         subtitle: "Best for active solo builders",
         features: ["Unlimited repo scans", "20 profile scans", "Bug + security detection", "Advanced AI recommendations"],
     },
     {
         key: "pro_plus",
         name: "Pro Plus",
-        price: 40,
+        price: 2,
         subtitle: "For teams and power users",
         features: ["Everything unlimited", "Deep analysis priority", "Auto PR publishing", "Premium support"],
     },
