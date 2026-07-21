@@ -69,6 +69,7 @@ export async function POST(req: Request) {
           },
         ],
         application_context: {
+          landing_page: 'BILLING',
           return_url: `${appUrl()}/api/payments/paypal/capture`,
           cancel_url: `${appUrl()}/pricing?payment=cancelled`,
           user_action: 'PAY_NOW',
