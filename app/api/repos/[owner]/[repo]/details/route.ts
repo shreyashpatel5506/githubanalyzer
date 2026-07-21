@@ -218,6 +218,12 @@ export async function GET(
         });
     } catch (error: any) {
         console.error('Details error:', error);
+        if (error.status === 401 || error.message?.includes('Bad credentials')) {
+            return NextResponse.json(
+                { error: 'GitHub session expired or invalid. Please sign out and sign back in to refresh your connection.' },
+                { status: 401 }
+            );
+        }
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
