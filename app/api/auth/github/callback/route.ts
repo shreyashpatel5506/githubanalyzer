@@ -39,6 +39,7 @@ function appUrl(reqUrl: string): string {
 function safeNextPath(candidate: string | null): string {
   if (!candidate || !candidate.startsWith('/')) return '/repos';
   if (candidate.startsWith('//')) return '/repos';
+  if (candidate.includes('://') || candidate.toLowerCase().includes('http')) return '/repos';
   return candidate;
 }
 
